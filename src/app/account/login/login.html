@@ -1,1 +1,45 @@
-<p>login works!</p>
+<div class="login">
+    <div class="login__card">
+
+        <div class="logo">
+            <div class="logo__circle"><a routerLink="/" class="logo__brand">XB</a></div>
+            <span class="logo__text">XBank</span>
+        </div>
+
+        <h2 class="login__title">Login to XBank Admin Portal</h2>
+
+        <form class="login__form">
+
+            <div class="input">
+                <label class="input__label">Email</label>
+                <div class="input__wrapper">
+                    <input class="input__field" type="email" placeholder="Enter Email">
+                    <span class="input__icon">✉</span>
+                </div>
+            </div>
+
+            <div class="input">
+                <label class="input__label">Password</label>
+                <div class="input__wrapper">
+                    <input class="input__field" type="password" placeholder="Enter Password">
+                    <span class="input__icon">👁</span>
+                </div>
+            </div>
+
+            <div class="login__options">
+                <label class="login__remember">
+                    <input type="checkbox" checked>
+                    Remember me
+                </label>
+
+                <a class="login__forgot" href="#">Forgot password?</a>
+            </div>
+
+            <button class="login__button" type="submit">
+                Login
+            </button>
+
+        </form>
+
+    </div>
+</div>
