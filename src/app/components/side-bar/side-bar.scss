@@ -3,9 +3,8 @@
     height: 100vh;
     background: #f9fafb;
     border-right: 1px solid #e5e7eb;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-family: 'Outfit';
 
-    
     position: fixed;
     left: 0;
     top: 0;
@@ -20,44 +19,46 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 30px;
-}
+    font-family: 'Quicksand';
 
-.logo-icon {
-    background: #111827;
-    color: white;
-    font-size: 12px;
-    padding: 6px;
-    border-radius: 6px;
-}
+    &__icon {
+        background: #111827;
+        color: white;
+        font-size: 12px;
+        padding: 6px;
+        border-radius: 6px;
+    }
 
-.logo-text {
-    font-weight: 600;
-    font-size: 16px;
+    &__text {
+        font-weight: 600;
+        font-size: 16px;
+    }
 }
 
 .menu {
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
 
-.menu-item {
-    text-decoration: none;
-    color: #374151;
-    padding: 10px 12px;
-    border-radius: 8px;
+    &__item {
+        text-decoration: none;
+        color: #374151;
+        padding: 10px 12px;
+        border-radius: 8px;
 
-    display: flex;
-    align-items: center;
-    gap: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
 
-    transition: 0.2s;
-    &:hover {
-        background: #e5e7eb;
+        transition: 0.2s;
+        &:hover {
+            background: #e5e7eb;
+            cursor: pointer;
+            }
+
+        &.active {
+            background: #111827;
+            color: white;
         }
-
-    &.active {
-        background: #111827;
-        color: white;
     }
 }
