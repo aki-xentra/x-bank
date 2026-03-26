@@ -22,16 +22,17 @@
     font-family: 'Quicksand';
 
     &__icon {
-        background: #111827;
-        color: white;
-        font-size: 12px;
+        background: linear-gradient(135deg, #e0e0e0, #f0f0f0);
+        color: #222;
+        font-weight: 700;
+        font-size: 15px;
         padding: 6px;
-        border-radius: 6px;
+        border-radius: 50%;
     }
 
     &__text {
-        font-weight: 600;
-        font-size: 16px;
+        font-weight: 700;
+        font-size: 20px;
     }
 }
 
@@ -44,7 +45,7 @@
         text-decoration: none;
         color: #374151;
         padding: 10px 12px;
-        border-radius: 8px;
+        border-radius: 30px;
 
         display: flex;
         align-items: center;
