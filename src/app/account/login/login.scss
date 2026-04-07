@@ -19,7 +19,7 @@ $primary-light: #2c2c2c;
     justify-content: center;
     background: $bg-color;
     padding: 20px;
-    font-family: 'Outfit';
+    font-family: 'Poppins';
 
     &__card {
         background: $card-bg;
@@ -92,7 +92,7 @@ $primary-light: #2c2c2c;
         cursor: pointer;
         transition: all 0.25s ease;
         letter-spacing: 0.3px;
-        font-family: 'Outfit';  
+        font-family: 'Poppins';  
              
         &:hover {
             opacity: 0.9;

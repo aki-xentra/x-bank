@@ -1,2 +1,54 @@
-<p>dashboard works!</p>
-<a routerLink="/">login</a>
+<section class="dashboard">
+    <h1 class="greeting">Good day, Admin!</h1>
+    <app-date-picker></app-date-picker>
+    <div class="sales">
+        <div class="sales__card">
+            <div class="sales__card-top">
+                <span class="sales__card-icon">📝</span>
+                <span class="sales__card-text">Transactions</span>
+            </div>
+            <div class="sales__total">
+                <span class="sales__total-title">Total Transactions</span>
+                <h2 class="sales__total-num">320</h2>
+            </div>
+        </div>
+        <div class="sales__card">
+            <div class="sales__card-top">
+                <span class="sales__card-icon">👨‍👩‍👧‍👦</span>
+                <span class="sales__card-text">Active Users</span>
+            </div>
+            <div class="sales__total">
+                <span class="sales__total-title">Total User</span>
+                <h2 class="sales__total-num">320</h2>
+            </div>
+        </div>
+    </div>
+    <div class="overall">
+        <div class="overall__header">
+            <span class="overall__title">Overall Sales</span>
+            <app-date-picker></app-date-picker>
+        </div>
+        <hr>
+        <div class="overall__content">
+            <div class="overall__left">
+                <span class="overall__label">Weekly Sales</span>
+                
+                <div class="overall__stats">
+                    <span class="overall__num">4,566.48</span>
+                    <span class="overall__percentile">+1.66%</span>
+                </div>
+
+                <span class="overall__update">
+                    Last Updated: 03/01/2025
+                </span>
+
+                <div class="overall__legend">
+                    <span class="dot"></span> This Week
+                </div>
+            </div>
+            <div class="overall__right">
+                <canvas id="salesChart"></canvas>
+            </div>
+        </div>
+    </div>
+</section>
