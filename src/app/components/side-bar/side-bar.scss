@@ -41,6 +41,15 @@
     flex-direction: column;
     gap: 8px;
 
+    &__icon {
+        display: flex;
+        gap: 10px;
+
+        i {
+            font-size: 20px;
+        }
+    }
+
     &__item {
         text-decoration: none;
         color: #374151;
@@ -52,6 +61,7 @@
         gap: 10px;
 
         transition: 0.2s;
+
         &:hover {
             background: #e5e7eb;
             cursor: pointer;

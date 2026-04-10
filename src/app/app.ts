@@ -4,10 +4,11 @@ import { filter } from 'rxjs';
 import { Header } from './components/header/header';
 import { SideBar } from './components/side-bar/side-bar';
 import { CommonModule } from '@angular/common';
+import { Footer } from './components/footer/footer';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, RouterOutlet, Header, SideBar],
+  imports: [CommonModule, RouterOutlet, Header, SideBar, Footer],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
