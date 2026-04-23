@@ -1,0 +1,2181 @@
+{
+    "pipes": [],
+    "interfaces": [
+        {
+            "name": "CalendarDay",
+            "id": "interface-CalendarDay-216dd391b8408a6361690d39a74c190d78a1e2c960035af88928762a1e995a08d56ac7cad397540a32b31aaff000fd1dc310871125af70cc900da2279c743c61",
+            "file": "src/app/components/date-picker.component/date-picker.component.ts",
+            "deprecated": false,
+            "deprecationMessage": "",
+            "type": "interface",
+            "sourceCode": "import {\r\n  Component,\r\n  OnInit,\r\n  HostListener,\r\n  ElementRef,\r\n  Output,\r\n  EventEmitter,\r\n  forwardRef,\r\n} from '@angular/core';\r\nimport { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';\r\nimport { CommonModule } from '@angular/common';\r\nimport { FormsModule } from '@angular/forms';\r\n\r\nexport interface DateRange {\r\n  start: Date | null;\r\n  end: Date | null;\r\n  preset?: string;\r\n}\r\n\r\ninterface CalendarDay {\r\n  date: Date;\r\n  currentMonth: boolean;\r\n  isToday: boolean;\r\n  isStart: boolean;\r\n  isEnd: boolean;\r\n  inRange: boolean;\r\n  disabled: boolean;\r\n}\r\n\r\nconst PRESETS = [\r\n  { label: 'Today', key: 'today' },\r\n  { label: 'Yesterday', key: 'yesterday' },\r\n  { label: 'Last week', key: 'last_week' },\r\n  { label: 'Last month', key: 'last_month' },\r\n  { label: 'Last quarter', key: 'last_quarter' },\r\n];\r\n\r\n@Component({\r\n  selector: 'app-date-picker',\r\n  standalone: true,\r\n  imports: [CommonModule, FormsModule],\r\n  templateUrl: './date-picker.component.html',\r\n  styleUrls: ['./date-picker.component.scss'],\r\n  providers: [\r\n    {\r\n      provide: NG_VALUE_ACCESSOR,\r\n      useExisting: forwardRef(() => DatePickerComponent),\r\n      multi: true,\r\n    },\r\n  ],\r\n})\r\nexport class DatePickerComponent implements OnInit, ControlValueAccessor {\r\n  @Output() rangeSelected = new EventEmitter<DateRange>();\r\n\r\n  isOpen = false;\r\n  presets = PRESETS;\r\n  weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];\r\n\r\n  viewDate: Date = new Date();\r\n  hoverDate: Date | null = null;\r\n\r\n  selectedPreset: string | null = null;\r\n  startDate: Date | null = null;\r\n  endDate: Date | null = null;\r\n  selecting: 'start' | 'end' = 'start';\r\n\r\n  calendarDays: CalendarDay[] = [];\r\n  displayLabel = 'Select date range';\r\n\r\n  private onChange: (value: DateRange) => void = () => {};\r\n  private onTouched: () => void = () => {};\r\n\r\n  constructor(private elRef: ElementRef) {}\r\n\r\n  ngOnInit(): void {\r\n    this.buildCalendar();\r\n  }\r\n\r\n  @HostListener('document:mousedown', ['$event'])\r\n  onDocumentMousedown(event: MouseEvent): void {\r\n    if (!this.elRef.nativeElement.contains(event.target)) {\r\n      this.isOpen = false;\r\n    }\r\n  }\r\n\r\n  get monthLabel(): string {\r\n    return this.viewDate.toLocaleString('default', {\r\n      month: 'long',\r\n      year: 'numeric',\r\n    });\r\n  }\r\n\r\n  toggleDropdown(): void {\r\n    this.isOpen = !this.isOpen;\r\n  }\r\n\r\n  selectPreset(key: string): void {\r\n    this.selectedPreset = key;\r\n    const today = new Date();\r\n    today.setHours(0, 0, 0, 0);\r\n\r\n    switch (key) {\r\n      case 'today':\r\n        this.startDate = new Date(today);\r\n        this.endDate = new Date(today);\r\n        break;\r\n      case 'yesterday': {\r\n        const y = new Date(today);\r\n        y.setDate(y.getDate() - 1);\r\n        this.startDate = y;\r\n        this.endDate = new Date(y);\r\n        break;\r\n      }\r\n      case 'last_week': {\r\n        const end = new Date(today);\r\n        end.setDate(today.getDate() - today.getDay()); // last Sunday\r\n        const start = new Date(end);\r\n        start.setDate(end.getDate() - 6);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n      case 'last_month': {\r\n        const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);\r\n        const end = new Date(today.getFullYear(), today.getMonth(), 0);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n      case 'last_quarter': {\r\n        const q = Math.floor(today.getMonth() / 3);\r\n        const start = new Date(today.getFullYear(), (q - 1) * 3, 1);\r\n        const end = new Date(today.getFullYear(), q * 3, 0);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n    }\r\n\r\n    this.selecting = 'start';\r\n    this.hoverDate = null;\r\n    this.viewDate = new Date(this.startDate!);\r\n    this.buildCalendar();\r\n  }\r\n\r\n  prevMonth(): void {\r\n    this.viewDate = new Date(\r\n      this.viewDate.getFullYear(),\r\n      this.viewDate.getMonth() - 1,\r\n      1\r\n    );\r\n    this.buildCalendar();\r\n  }\r\n\r\n  nextMonth(): void {\r\n    this.viewDate = new Date(\r\n      this.viewDate.getFullYear(),\r\n      this.viewDate.getMonth() + 1,\r\n      1\r\n    );\r\n    this.buildCalendar();\r\n  }\r\n\r\n  onDayHover(day: CalendarDay): void {\r\n    if (this.selecting === 'end' && this.startDate) {\r\n      this.hoverDate = day.date;\r\n      this.buildCalendar();\r\n    }\r\n  }\r\n\r\n  onDayClick(day: CalendarDay): void {\r\n    this.selectedPreset = null;\r\n\r\n    if (this.selecting === 'start') {\r\n      this.startDate = new Date(day.date);\r\n      this.endDate = null;\r\n      this.hoverDate = null;\r\n      this.selecting = 'end';\r\n    } else {\r\n      const clicked = new Date(day.date);\r\n      if (clicked < this.startDate!) {\r\n        // Clicked before start — swap\r\n        this.endDate = new Date(this.startDate!);\r\n        this.startDate = clicked;\r\n      } else {\r\n        this.endDate = clicked;\r\n      }\r\n      this.selecting = 'start';\r\n      this.hoverDate = null;\r\n    }\r\n\r\n    this.buildCalendar();\r\n  }\r\n\r\n  confirm(): void {\r\n    if (!this.startDate) return;\r\n    const range: DateRange = {\r\n      start: this.startDate,\r\n      end: this.endDate ?? this.startDate,\r\n      preset: this.selectedPreset ?? undefined,\r\n    };\r\n    this.updateLabel(range);\r\n    this.onChange(range);\r\n    this.rangeSelected.emit(range);\r\n    this.isOpen = false;\r\n  }\r\n\r\n  reset(): void {\r\n    this.startDate = null;\r\n    this.endDate = null;\r\n    this.selectedPreset = null;\r\n    this.selecting = 'start';\r\n    this.hoverDate = null;\r\n    this.displayLabel = 'Select date range';\r\n    this.buildCalendar();\r\n    const range: DateRange = { start: null, end: null };\r\n    this.onChange(range);\r\n    this.rangeSelected.emit(range);\r\n  }\r\n\r\n  private updateLabel(range: DateRange): void {\r\n    if (this.selectedPreset) {\r\n      const p = PRESETS.find((p) => p.key === this.selectedPreset);\r\n      this.displayLabel = p ? p.label : this.formatRange(range);\r\n    } else {\r\n      this.displayLabel = this.formatRange(range);\r\n    }\r\n  }\r\n\r\n  private formatRange(range: DateRange): string {\r\n    const fmt = (d: Date) =>\r\n      d.toLocaleDateString('en-US', {\r\n        month: 'short',\r\n        day: 'numeric',\r\n        year: 'numeric',\r\n      });\r\n    if (!range.start) return 'Select date range';\r\n    if (!range.end || range.start.getTime() === range.end.getTime())\r\n      return fmt(range.start);\r\n    return `${fmt(range.start)} – ${fmt(range.end)}`;\r\n  }\r\n\r\n  buildCalendar(): void {\r\n    const year = this.viewDate.getFullYear();\r\n    const month = this.viewDate.getMonth();\r\n    const firstDay = new Date(year, month, 1);\r\n    const today = new Date();\r\n    today.setHours(0, 0, 0, 0);\r\n\r\n    // Monday-based: getDay() returns 0=Sun, adjust\r\n    let startOffset = firstDay.getDay() - 1;\r\n    if (startOffset < 0) startOffset = 6;\r\n\r\n    const days: CalendarDay[] = [];\r\n    const calStart = new Date(firstDay);\r\n    calStart.setDate(calStart.getDate() - startOffset);\r\n\r\n    const effectiveEnd = this.endDate ?? this.hoverDate;\r\n\r\n    for (let i = 0; i < 42; i++) {\r\n      const date = new Date(calStart);\r\n      date.setDate(calStart.getDate() + i);\r\n      date.setHours(0, 0, 0, 0);\r\n\r\n      const isStart =\r\n        !!this.startDate && date.getTime() === this.startDate.getTime();\r\n      const isEnd =\r\n        !!effectiveEnd && date.getTime() === effectiveEnd.getTime();\r\n      const inRange =\r\n        !!this.startDate &&\r\n        !!effectiveEnd &&\r\n        date > this.startDate &&\r\n        date < effectiveEnd;\r\n\r\n      days.push({\r\n        date,\r\n        currentMonth: date.getMonth() === month,\r\n        isToday: date.getTime() === today.getTime(),\r\n        isStart,\r\n        isEnd,\r\n        inRange,\r\n        disabled: false,\r\n      });\r\n    }\r\n\r\n    this.calendarDays = days;\r\n  }\r\n\r\n  // ControlValueAccessor\r\n  writeValue(value: DateRange): void {\r\n    if (value) {\r\n      this.startDate = value.start;\r\n      this.endDate = value.end;\r\n      this.buildCalendar();\r\n    }\r\n  }\r\n  registerOnChange(fn: (value: DateRange) => void): void {\r\n    this.onChange = fn;\r\n  }\r\n  registerOnTouched(fn: () => void): void {\r\n    this.onTouched = fn;\r\n  }\r\n}",
+            "properties": [
+                {
+                    "name": "currentMonth",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "boolean",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 22
+                },
+                {
+                    "name": "date",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "Date",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 21
+                },
+                {
+                    "name": "disabled",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "boolean",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 27
+                },
+                {
+                    "name": "inRange",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "boolean",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 26
+                },
+                {
+                    "name": "isEnd",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "boolean",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 25
+                },
+                {
+                    "name": "isStart",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "boolean",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 24
+                },
+                {
+                    "name": "isToday",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "boolean",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 23
+                }
+            ],
+            "indexSignatures": [],
+            "kind": 172,
+            "methods": [],
+            "extends": []
+        },
+        {
+            "name": "DateRange",
+            "id": "interface-DateRange-216dd391b8408a6361690d39a74c190d78a1e2c960035af88928762a1e995a08d56ac7cad397540a32b31aaff000fd1dc310871125af70cc900da2279c743c61",
+            "file": "src/app/components/date-picker.component/date-picker.component.ts",
+            "deprecated": false,
+            "deprecationMessage": "",
+            "type": "interface",
+            "sourceCode": "import {\r\n  Component,\r\n  OnInit,\r\n  HostListener,\r\n  ElementRef,\r\n  Output,\r\n  EventEmitter,\r\n  forwardRef,\r\n} from '@angular/core';\r\nimport { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';\r\nimport { CommonModule } from '@angular/common';\r\nimport { FormsModule } from '@angular/forms';\r\n\r\nexport interface DateRange {\r\n  start: Date | null;\r\n  end: Date | null;\r\n  preset?: string;\r\n}\r\n\r\ninterface CalendarDay {\r\n  date: Date;\r\n  currentMonth: boolean;\r\n  isToday: boolean;\r\n  isStart: boolean;\r\n  isEnd: boolean;\r\n  inRange: boolean;\r\n  disabled: boolean;\r\n}\r\n\r\nconst PRESETS = [\r\n  { label: 'Today', key: 'today' },\r\n  { label: 'Yesterday', key: 'yesterday' },\r\n  { label: 'Last week', key: 'last_week' },\r\n  { label: 'Last month', key: 'last_month' },\r\n  { label: 'Last quarter', key: 'last_quarter' },\r\n];\r\n\r\n@Component({\r\n  selector: 'app-date-picker',\r\n  standalone: true,\r\n  imports: [CommonModule, FormsModule],\r\n  templateUrl: './date-picker.component.html',\r\n  styleUrls: ['./date-picker.component.scss'],\r\n  providers: [\r\n    {\r\n      provide: NG_VALUE_ACCESSOR,\r\n      useExisting: forwardRef(() => DatePickerComponent),\r\n      multi: true,\r\n    },\r\n  ],\r\n})\r\nexport class DatePickerComponent implements OnInit, ControlValueAccessor {\r\n  @Output() rangeSelected = new EventEmitter<DateRange>();\r\n\r\n  isOpen = false;\r\n  presets = PRESETS;\r\n  weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];\r\n\r\n  viewDate: Date = new Date();\r\n  hoverDate: Date | null = null;\r\n\r\n  selectedPreset: string | null = null;\r\n  startDate: Date | null = null;\r\n  endDate: Date | null = null;\r\n  selecting: 'start' | 'end' = 'start';\r\n\r\n  calendarDays: CalendarDay[] = [];\r\n  displayLabel = 'Select date range';\r\n\r\n  private onChange: (value: DateRange) => void = () => {};\r\n  private onTouched: () => void = () => {};\r\n\r\n  constructor(private elRef: ElementRef) {}\r\n\r\n  ngOnInit(): void {\r\n    this.buildCalendar();\r\n  }\r\n\r\n  @HostListener('document:mousedown', ['$event'])\r\n  onDocumentMousedown(event: MouseEvent): void {\r\n    if (!this.elRef.nativeElement.contains(event.target)) {\r\n      this.isOpen = false;\r\n    }\r\n  }\r\n\r\n  get monthLabel(): string {\r\n    return this.viewDate.toLocaleString('default', {\r\n      month: 'long',\r\n      year: 'numeric',\r\n    });\r\n  }\r\n\r\n  toggleDropdown(): void {\r\n    this.isOpen = !this.isOpen;\r\n  }\r\n\r\n  selectPreset(key: string): void {\r\n    this.selectedPreset = key;\r\n    const today = new Date();\r\n    today.setHours(0, 0, 0, 0);\r\n\r\n    switch (key) {\r\n      case 'today':\r\n        this.startDate = new Date(today);\r\n        this.endDate = new Date(today);\r\n        break;\r\n      case 'yesterday': {\r\n        const y = new Date(today);\r\n        y.setDate(y.getDate() - 1);\r\n        this.startDate = y;\r\n        this.endDate = new Date(y);\r\n        break;\r\n      }\r\n      case 'last_week': {\r\n        const end = new Date(today);\r\n        end.setDate(today.getDate() - today.getDay()); // last Sunday\r\n        const start = new Date(end);\r\n        start.setDate(end.getDate() - 6);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n      case 'last_month': {\r\n        const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);\r\n        const end = new Date(today.getFullYear(), today.getMonth(), 0);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n      case 'last_quarter': {\r\n        const q = Math.floor(today.getMonth() / 3);\r\n        const start = new Date(today.getFullYear(), (q - 1) * 3, 1);\r\n        const end = new Date(today.getFullYear(), q * 3, 0);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n    }\r\n\r\n    this.selecting = 'start';\r\n    this.hoverDate = null;\r\n    this.viewDate = new Date(this.startDate!);\r\n    this.buildCalendar();\r\n  }\r\n\r\n  prevMonth(): void {\r\n    this.viewDate = new Date(\r\n      this.viewDate.getFullYear(),\r\n      this.viewDate.getMonth() - 1,\r\n      1\r\n    );\r\n    this.buildCalendar();\r\n  }\r\n\r\n  nextMonth(): void {\r\n    this.viewDate = new Date(\r\n      this.viewDate.getFullYear(),\r\n      this.viewDate.getMonth() + 1,\r\n      1\r\n    );\r\n    this.buildCalendar();\r\n  }\r\n\r\n  onDayHover(day: CalendarDay): void {\r\n    if (this.selecting === 'end' && this.startDate) {\r\n      this.hoverDate = day.date;\r\n      this.buildCalendar();\r\n    }\r\n  }\r\n\r\n  onDayClick(day: CalendarDay): void {\r\n    this.selectedPreset = null;\r\n\r\n    if (this.selecting === 'start') {\r\n      this.startDate = new Date(day.date);\r\n      this.endDate = null;\r\n      this.hoverDate = null;\r\n      this.selecting = 'end';\r\n    } else {\r\n      const clicked = new Date(day.date);\r\n      if (clicked < this.startDate!) {\r\n        // Clicked before start — swap\r\n        this.endDate = new Date(this.startDate!);\r\n        this.startDate = clicked;\r\n      } else {\r\n        this.endDate = clicked;\r\n      }\r\n      this.selecting = 'start';\r\n      this.hoverDate = null;\r\n    }\r\n\r\n    this.buildCalendar();\r\n  }\r\n\r\n  confirm(): void {\r\n    if (!this.startDate) return;\r\n    const range: DateRange = {\r\n      start: this.startDate,\r\n      end: this.endDate ?? this.startDate,\r\n      preset: this.selectedPreset ?? undefined,\r\n    };\r\n    this.updateLabel(range);\r\n    this.onChange(range);\r\n    this.rangeSelected.emit(range);\r\n    this.isOpen = false;\r\n  }\r\n\r\n  reset(): void {\r\n    this.startDate = null;\r\n    this.endDate = null;\r\n    this.selectedPreset = null;\r\n    this.selecting = 'start';\r\n    this.hoverDate = null;\r\n    this.displayLabel = 'Select date range';\r\n    this.buildCalendar();\r\n    const range: DateRange = { start: null, end: null };\r\n    this.onChange(range);\r\n    this.rangeSelected.emit(range);\r\n  }\r\n\r\n  private updateLabel(range: DateRange): void {\r\n    if (this.selectedPreset) {\r\n      const p = PRESETS.find((p) => p.key === this.selectedPreset);\r\n      this.displayLabel = p ? p.label : this.formatRange(range);\r\n    } else {\r\n      this.displayLabel = this.formatRange(range);\r\n    }\r\n  }\r\n\r\n  private formatRange(range: DateRange): string {\r\n    const fmt = (d: Date) =>\r\n      d.toLocaleDateString('en-US', {\r\n        month: 'short',\r\n        day: 'numeric',\r\n        year: 'numeric',\r\n      });\r\n    if (!range.start) return 'Select date range';\r\n    if (!range.end || range.start.getTime() === range.end.getTime())\r\n      return fmt(range.start);\r\n    return `${fmt(range.start)} – ${fmt(range.end)}`;\r\n  }\r\n\r\n  buildCalendar(): void {\r\n    const year = this.viewDate.getFullYear();\r\n    const month = this.viewDate.getMonth();\r\n    const firstDay = new Date(year, month, 1);\r\n    const today = new Date();\r\n    today.setHours(0, 0, 0, 0);\r\n\r\n    // Monday-based: getDay() returns 0=Sun, adjust\r\n    let startOffset = firstDay.getDay() - 1;\r\n    if (startOffset < 0) startOffset = 6;\r\n\r\n    const days: CalendarDay[] = [];\r\n    const calStart = new Date(firstDay);\r\n    calStart.setDate(calStart.getDate() - startOffset);\r\n\r\n    const effectiveEnd = this.endDate ?? this.hoverDate;\r\n\r\n    for (let i = 0; i < 42; i++) {\r\n      const date = new Date(calStart);\r\n      date.setDate(calStart.getDate() + i);\r\n      date.setHours(0, 0, 0, 0);\r\n\r\n      const isStart =\r\n        !!this.startDate && date.getTime() === this.startDate.getTime();\r\n      const isEnd =\r\n        !!effectiveEnd && date.getTime() === effectiveEnd.getTime();\r\n      const inRange =\r\n        !!this.startDate &&\r\n        !!effectiveEnd &&\r\n        date > this.startDate &&\r\n        date < effectiveEnd;\r\n\r\n      days.push({\r\n        date,\r\n        currentMonth: date.getMonth() === month,\r\n        isToday: date.getTime() === today.getTime(),\r\n        isStart,\r\n        isEnd,\r\n        inRange,\r\n        disabled: false,\r\n      });\r\n    }\r\n\r\n    this.calendarDays = days;\r\n  }\r\n\r\n  // ControlValueAccessor\r\n  writeValue(value: DateRange): void {\r\n    if (value) {\r\n      this.startDate = value.start;\r\n      this.endDate = value.end;\r\n      this.buildCalendar();\r\n    }\r\n  }\r\n  registerOnChange(fn: (value: DateRange) => void): void {\r\n    this.onChange = fn;\r\n  }\r\n  registerOnTouched(fn: () => void): void {\r\n    this.onTouched = fn;\r\n  }\r\n}",
+            "properties": [
+                {
+                    "name": "end",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "Date | null",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 16
+                },
+                {
+                    "name": "preset",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "string",
+                    "indexKey": "",
+                    "optional": true,
+                    "description": "",
+                    "line": 17
+                },
+                {
+                    "name": "start",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "Date | null",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 15
+                }
+            ],
+            "indexSignatures": [],
+            "kind": 172,
+            "methods": [],
+            "extends": []
+        },
+        {
+            "name": "User",
+            "id": "interface-User-d4821beac0e4a852e513391b7470981c4353fdd95a18628bb68136c8695b489ee15b926e2e5031bc26cf30e1508e0a362c3ee13a06734702b4d15af140e485d5",
+            "file": "src/stories/user.ts",
+            "deprecated": false,
+            "deprecationMessage": "",
+            "type": "interface",
+            "sourceCode": "export interface User {\n  name: string;\n}\n",
+            "properties": [
+                {
+                    "name": "name",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "string",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 2
+                }
+            ],
+            "indexSignatures": [],
+            "kind": 172,
+            "methods": [],
+            "extends": []
+        }
+    ],
+    "injectables": [],
+    "guards": [],
+    "interceptors": [],
+    "classes": [],
+    "directives": [],
+    "components": [
+        {
+            "name": "App",
+            "id": "component-App-246ffcb7c0869743f12d08b6ea469c3da6417276580f2e4ee3b5e61ff20b730b1bdcd1a89951c021be8b30cb13ef65876d7ee451c7fc29dd4b54e81f458359d1",
+            "file": "src/app/app.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-root",
+            "styleUrls": [],
+            "styles": [],
+            "templateUrl": [
+                "./app.html"
+            ],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [
+                {
+                    "name": "showLayout",
+                    "defaultValue": "true",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 18
+                },
+                {
+                    "name": "title",
+                    "defaultValue": "signal('x-bank')",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 16,
+                    "modifierKind": [
+                        124,
+                        148
+                    ]
+                }
+            ],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": false,
+            "imports": [
+                {
+                    "name": "CommonModule",
+                    "type": "module"
+                },
+                {
+                    "name": "RouterOutlet"
+                },
+                {
+                    "name": "Header"
+                },
+                {
+                    "name": "SideBar"
+                },
+                {
+                    "name": "Footer"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component, signal } from '@angular/core';\r\nimport { RouterOutlet, NavigationEnd, ActivatedRoute, Router } from '@angular/router';\r\nimport { filter } from 'rxjs';\r\nimport { Header } from './components/header/header';\r\nimport { SideBar } from './components/side-bar/side-bar';\r\nimport { CommonModule } from '@angular/common';\r\nimport { Footer } from './components/footer/footer';\r\n\r\n@Component({\r\n  selector: 'app-root',\r\n  imports: [CommonModule, RouterOutlet, Header, SideBar, Footer],\r\n  templateUrl: './app.html',\r\n  styleUrl: './app.scss'\r\n})\r\nexport class App {\r\n  protected readonly title = signal('x-bank');\r\n\r\n  showLayout = true;\r\n\r\n  constructor(private router: Router, private activatedRoute: ActivatedRoute) {\r\n    this.router.events\r\n      .pipe(filter(event => event instanceof NavigationEnd))\r\n      .subscribe(() => {\r\n        let route = this.activatedRoute;\r\n\r\n        while (route.firstChild){\r\n          route = route.firstChild;\r\n        }\r\n        \r\n        route.data.subscribe(data => {\r\n          this.showLayout = !data ['hideLayout'];\r\n        });\r\n      });\r\n  }\r\n}\r\n",
+            "styleUrl": "./app.scss",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "constructorObj": {
+                "name": "constructor",
+                "description": "",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "args": [
+                    {
+                        "name": "router",
+                        "type": "Router",
+                        "optional": false,
+                        "dotDotDotToken": false,
+                        "deprecated": false,
+                        "deprecationMessage": ""
+                    },
+                    {
+                        "name": "activatedRoute",
+                        "type": "ActivatedRoute",
+                        "optional": false,
+                        "dotDotDotToken": false,
+                        "deprecated": false,
+                        "deprecationMessage": ""
+                    }
+                ],
+                "line": 18,
+                "jsdoctags": [
+                    {
+                        "name": "router",
+                        "type": "Router",
+                        "optional": false,
+                        "dotDotDotToken": false,
+                        "deprecated": false,
+                        "deprecationMessage": "",
+                        "tagName": {
+                            "text": "param"
+                        }
+                    },
+                    {
+                        "name": "activatedRoute",
+                        "type": "ActivatedRoute",
+                        "optional": false,
+                        "dotDotDotToken": false,
+                        "deprecated": false,
+                        "deprecationMessage": "",
+                        "tagName": {
+                            "text": "param"
+                        }
+                    }
+                ]
+            },
+            "extends": [],
+            "templateData": "<app-header *ngIf=\"showLayout\"></app-header>\r\n<app-side-bar *ngIf=\"showLayout\"></app-side-bar>\r\n<div [class.main-content]=\"showLayout\">\r\n    <router-outlet></router-outlet>\r\n</div>\r\n<app-footer *ngIf=\"showLayout\"></app-footer>\r\n"
+        },
+        {
+            "name": "ButtonComponent",
+            "id": "component-ButtonComponent-d7bf0323e6da130e2609e2af0117b4a8d7cd874132206af50bf43dfc37044485fe50f2867ea76525730dd195b9b95a43802a12dadc6ad5cd7bf2faa07f19f0da",
+            "file": "src/stories/button.component.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "storybook-button",
+            "styleUrls": [
+                "./button.css"
+            ],
+            "styles": [],
+            "template": " <button  type=\"button\"\n  (click)=\"onClick.emit($event)\"\n  [ngClass]=\"classes\"\n  [ngStyle]=\"{ 'background-color': backgroundColor }\"\n>\n  {{ label }}\n</button>",
+            "templateUrl": [],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [
+                {
+                    "name": "backgroundColor",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\nWhat background color to use",
+                    "description": "<p>What background color to use</p>\n",
+                    "line": 25,
+                    "type": "string",
+                    "decorators": []
+                },
+                {
+                    "name": "label",
+                    "defaultValue": "'Button'",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "pos": 760,
+                            "end": 773,
+                            "kind": 328,
+                            "id": 0,
+                            "flags": 16842752,
+                            "modifierFlagsCache": 0,
+                            "transformFlags": 0,
+                            "tagName": {
+                                "pos": 761,
+                                "end": 769,
+                                "kind": 80,
+                                "id": 0,
+                                "flags": 16842752,
+                                "transformFlags": 0,
+                                "escapedText": "required"
+                            },
+                            "comment": ""
+                        }
+                    ],
+                    "rawdescription": "\n\nButton contents\n\n",
+                    "description": "<p>Button contents</p>\n",
+                    "line": 37,
+                    "type": "string",
+                    "decorators": []
+                },
+                {
+                    "name": "primary",
+                    "defaultValue": "false",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\nIs this the principal call to action on the page?",
+                    "description": "<p>Is this the principal call to action on the page?</p>\n",
+                    "line": 21,
+                    "type": "boolean",
+                    "decorators": []
+                },
+                {
+                    "name": "size",
+                    "defaultValue": "'medium'",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\nHow large should the button be?",
+                    "description": "<p>How large should the button be?</p>\n",
+                    "line": 29,
+                    "type": "\"small\" | \"medium\" | \"large\"",
+                    "decorators": []
+                }
+            ],
+            "outputsClass": [
+                {
+                    "name": "onClick",
+                    "defaultValue": "new EventEmitter<Event>()",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\nOptional click handler",
+                    "description": "<p>Optional click handler</p>\n",
+                    "line": 41,
+                    "type": "EventEmitter"
+                }
+            ],
+            "propertiesClass": [],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": true,
+            "imports": [
+                {
+                    "name": "CommonModule",
+                    "type": "module"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { CommonModule } from '@angular/common';\nimport { Component, Input, Output, EventEmitter } from '@angular/core';\n\n@Component({\n  selector: 'storybook-button',\n  standalone: true,\n  imports: [CommonModule],\n  template: ` <button\n  type=\"button\"\n  (click)=\"onClick.emit($event)\"\n  [ngClass]=\"classes\"\n  [ngStyle]=\"{ 'background-color': backgroundColor }\"\n>\n  {{ label }}\n</button>`,\n  styleUrls: ['./button.css'],\n})\nexport class ButtonComponent {\n  /** Is this the principal call to action on the page? */\n  @Input()\n  primary = false;\n\n  /** What background color to use */\n  @Input()\n  backgroundColor?: string;\n\n  /** How large should the button be? */\n  @Input()\n  size: 'small' | 'medium' | 'large' = 'medium';\n\n  /**\n   * Button contents\n   *\n   * @required\n   */\n  @Input()\n  label = 'Button';\n\n  /** Optional click handler */\n  @Output()\n  onClick = new EventEmitter<Event>();\n\n  public get classes(): string[] {\n    const mode = this.primary ? 'storybook-button--primary' : 'storybook-button--secondary';\n\n    return ['storybook-button', `storybook-button--${this.size}`, mode];\n  }\n}\n",
+            "assetsDirs": [],
+            "styleUrlsData": [
+                {
+                    "data": ".storybook-button {\n  display: inline-block;\n  cursor: pointer;\n  border: 0;\n  border-radius: 3em;\n  font-weight: 700;\n  line-height: 1;\n  font-family: 'Nunito Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;\n}\n.storybook-button--primary {\n  background-color: #555ab9;\n  color: white;\n}\n.storybook-button--secondary {\n  box-shadow: rgba(0, 0, 0, 0.15) 0px 0px 0px 1px inset;\n  background-color: transparent;\n  color: #333;\n}\n.storybook-button--small {\n  padding: 10px 16px;\n  font-size: 12px;\n}\n.storybook-button--medium {\n  padding: 11px 20px;\n  font-size: 14px;\n}\n.storybook-button--large {\n  padding: 12px 24px;\n  font-size: 16px;\n}\n",
+                    "styleUrl": "./button.css"
+                }
+            ],
+            "stylesData": "",
+            "extends": [],
+            "accessors": {
+                "classes": {
+                    "name": "classes",
+                    "getSignature": {
+                        "name": "classes",
+                        "type": "[]",
+                        "returnType": "string[]",
+                        "line": 43
+                    }
+                }
+            }
+        },
+        {
+            "name": "Dashboard",
+            "id": "component-Dashboard-eb96fc35baa1eba5dbdd493bb93c494f40a34a63728fb335e1c0fca4edf061069f012fe6d1ffeb532f7dcb284a883d8eb6801802573364160ea63e9b3ec2a0f6",
+            "file": "src/app/pages/dashboard/dashboard.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-dashboard",
+            "styleUrls": [],
+            "styles": [],
+            "templateUrl": [
+                "./dashboard.html"
+            ],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [
+                {
+                    "name": "chartRef",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "ElementRef",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 21,
+                    "decorators": [
+                        {
+                            "name": "ViewChild",
+                            "stringifiedArguments": "'salesChart'"
+                        }
+                    ],
+                    "modifierKind": [
+                        171
+                    ]
+                },
+                {
+                    "name": "isBrowser",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "boolean",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 24
+                },
+                {
+                    "name": "isCustom",
+                    "defaultValue": "false",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 23
+                }
+            ],
+            "methodsClass": [
+                {
+                    "name": "createChart",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 41,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "ngAfterViewInit",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 34,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "onPresetChange",
+                    "args": [
+                        {
+                            "name": "event",
+                            "type": "any",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 30,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "event",
+                            "type": "any",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": false,
+            "imports": [
+                {
+                    "name": "DatePickerComponent",
+                    "type": "component"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { \r\n  Component, \r\n  AfterViewInit, \r\n  ViewChild, \r\n  ElementRef, \r\n  Inject, \r\n  PLATFORM_ID \r\n} from '@angular/core';\r\nimport { isPlatformBrowser } from '@angular/common';\r\nimport { DatePickerComponent } from '../../components/date-picker.component/date-picker.component';\r\nimport Chart from 'chart.js/auto';\r\n\r\n@Component({\r\n  selector: 'app-dashboard',\r\n  imports: [DatePickerComponent],\r\n  templateUrl: './dashboard.html',\r\n  styleUrl: './dashboard.scss',\r\n})\r\nexport class Dashboard implements AfterViewInit {\r\n\r\n  @ViewChild('salesChart') chartRef!: ElementRef;\r\n\r\n  isCustom = false;\r\n  isBrowser: boolean;\r\n\r\n  constructor(@Inject(PLATFORM_ID) private platformId: Object) {\r\n    this.isBrowser = isPlatformBrowser(this.platformId);\r\n  }\r\n\r\n  onPresetChange(event: any) {\r\n    this.isCustom = event.target.value === 'custom';\r\n  }\r\n\r\n  ngAfterViewInit(): void {\r\n    // 🚨 Only run in browser (fixes your error)\r\n    if (this.isBrowser) {\r\n      this.createChart();\r\n    }\r\n  }\r\n\r\n  createChart() {\r\n    new Chart(this.chartRef.nativeElement, {\r\n      type: 'line',\r\n      data: {\r\n        labels: ['Mon', '', 'Tue', 'Wed', 'Thurs', '', 'Fri'],\r\n        datasets: [\r\n          {\r\n            data: [40, 52, 72, 72, 60, 56, 67],\r\n            borderColor: '#1aa36f',\r\n            backgroundColor: 'rgba(26,163,111,0.2)',\r\n            fill: true,\r\n            tension: 0.4,\r\n            pointRadius: 3\r\n          }\r\n        ]\r\n      },\r\n      options: {\r\n        responsive: true,\r\n        maintainAspectRatio: false,\r\n        plugins: {\r\n          legend: { display: false }\r\n        },\r\n        scales: {\r\n          x: {\r\n            grid: { display: false }\r\n          },\r\n          y: {\r\n            beginAtZero: true,\r\n            ticks: { stepSize: 20 }\r\n          }\r\n        }\r\n      }\r\n    });\r\n  }\r\n}",
+            "styleUrl": "./dashboard.scss",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "constructorObj": {
+                "name": "constructor",
+                "description": "",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "args": [
+                    {
+                        "name": "platformId",
+                        "type": "Object",
+                        "optional": false,
+                        "dotDotDotToken": false,
+                        "deprecated": false,
+                        "deprecationMessage": ""
+                    }
+                ],
+                "line": 24,
+                "jsdoctags": [
+                    {
+                        "name": "platformId",
+                        "type": "Object",
+                        "optional": false,
+                        "dotDotDotToken": false,
+                        "deprecated": false,
+                        "deprecationMessage": "",
+                        "tagName": {
+                            "text": "param"
+                        }
+                    }
+                ]
+            },
+            "extends": [],
+            "implements": [
+                "AfterViewInit"
+            ],
+            "templateData": "<section class=\"dashboard\">\r\n    <h1 class=\"greeting\">Good day, Admin!</h1>\r\n    <app-date-picker></app-date-picker>\r\n    <div class=\"sales\">\r\n        <div class=\"sales__card\">\r\n            <div class=\"sales__card-top\">\r\n                <span class=\"sales__card-icon\"><i class=\"ph ph-receipt\"></i></span>\r\n                <span class=\"sales__card-text\">Transactions</span>\r\n            </div>\r\n            <div class=\"sales__total\">\r\n                <span class=\"sales__total-title\">Total Transactions</span>\r\n                <h2 class=\"sales__total-num\">320</h2>\r\n            </div>\r\n        </div>\r\n        <div class=\"sales__card\">\r\n            <div class=\"sales__card-top\">\r\n                <span class=\"sales__card-icon\">👨‍👩‍👧‍👦</span>\r\n                <span class=\"sales__card-text\">Active Users</span>\r\n            </div>\r\n            <div class=\"sales__total\">\r\n                <span class=\"sales__total-title\">Total User</span>\r\n                <h2 class=\"sales__total-num\">320</h2>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"overall\">\r\n        <div class=\"overall__header\">\r\n            <span class=\"overall__title\">Overall Sales</span>\r\n            <app-date-picker></app-date-picker>\r\n        </div>\r\n        <hr>\r\n        <div class=\"overall__content\">\r\n            <div class=\"overall__left\">\r\n                <span class=\"overall__label\">Weekly Sales</span>\r\n                \r\n                <div class=\"overall__stats\">\r\n                    <span class=\"overall__num\">4,566.48</span>\r\n                    <span class=\"overall__percentile\">+1.66%</span>\r\n                </div>\r\n\r\n                <span class=\"overall__update\">\r\n                    Last Updated: 03/01/2025\r\n                </span>\r\n\r\n                <div class=\"overall__legend\">\r\n                    <span class=\"dot\"></span> This Week\r\n                </div>\r\n            </div>\r\n            <div class=\"overall__right\">\r\n                <canvas #salesChart></canvas>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</section>"
+        },
+        {
+            "name": "DatePickerComponent",
+            "id": "component-DatePickerComponent-216dd391b8408a6361690d39a74c190d78a1e2c960035af88928762a1e995a08d56ac7cad397540a32b31aaff000fd1dc310871125af70cc900da2279c743c61",
+            "file": "src/app/components/date-picker.component/date-picker.component.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [
+                {
+                    "name": ")"
+                }
+            ],
+            "selector": "app-date-picker",
+            "styleUrls": [
+                "./date-picker.component.scss"
+            ],
+            "styles": [],
+            "templateUrl": [
+                "./date-picker.component.html"
+            ],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [
+                {
+                    "name": "rangeSelected",
+                    "defaultValue": "new EventEmitter<DateRange>()",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "line": 53,
+                    "type": "EventEmitter"
+                }
+            ],
+            "propertiesClass": [
+                {
+                    "name": "calendarDays",
+                    "defaultValue": "[]",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "CalendarDay[]",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 67
+                },
+                {
+                    "name": "displayLabel",
+                    "defaultValue": "'Select date range'",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "string",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 68
+                },
+                {
+                    "name": "endDate",
+                    "defaultValue": "null",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "Date | null",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 64
+                },
+                {
+                    "name": "hoverDate",
+                    "defaultValue": "null",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "Date | null",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 60
+                },
+                {
+                    "name": "isOpen",
+                    "defaultValue": "false",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 55
+                },
+                {
+                    "name": "onChange",
+                    "defaultValue": "() => {...}",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "function",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 70,
+                    "modifierKind": [
+                        123
+                    ]
+                },
+                {
+                    "name": "onTouched",
+                    "defaultValue": "() => {...}",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "function",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 71,
+                    "modifierKind": [
+                        123
+                    ]
+                },
+                {
+                    "name": "presets",
+                    "defaultValue": "PRESETS",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 56
+                },
+                {
+                    "name": "selectedPreset",
+                    "defaultValue": "null",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "string | null",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 62
+                },
+                {
+                    "name": "selecting",
+                    "defaultValue": "'start'",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "\"start\" | \"end\"",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 65
+                },
+                {
+                    "name": "startDate",
+                    "defaultValue": "null",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "Date | null",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 63
+                },
+                {
+                    "name": "viewDate",
+                    "defaultValue": "new Date()",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "Date",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 59
+                },
+                {
+                    "name": "weekDays",
+                    "defaultValue": "['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "[]",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 57
+                }
+            ],
+            "methodsClass": [
+                {
+                    "name": "buildCalendar",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 243,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "confirm",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 195,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "formatRange",
+                    "args": [
+                        {
+                            "name": "range",
+                            "type": "DateRange",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "string",
+                    "typeParameters": [],
+                    "line": 230,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "modifierKind": [
+                        123
+                    ],
+                    "jsdoctags": [
+                        {
+                            "name": "range",
+                            "type": "DateRange",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "nextMonth",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 155,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "ngOnInit",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 75,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "onDayClick",
+                    "args": [
+                        {
+                            "name": "day",
+                            "type": "CalendarDay",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 171,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "day",
+                            "type": "CalendarDay",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "onDayHover",
+                    "args": [
+                        {
+                            "name": "day",
+                            "type": "CalendarDay",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 164,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "day",
+                            "type": "CalendarDay",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "onDocumentMousedown",
+                    "args": [
+                        {
+                            "name": "event",
+                            "type": "MouseEvent",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 80,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "decorators": [
+                        {
+                            "name": "HostListener",
+                            "stringifiedArguments": "'document:mousedown', ['$event']"
+                        }
+                    ],
+                    "modifierKind": [
+                        171
+                    ],
+                    "jsdoctags": [
+                        {
+                            "name": "event",
+                            "type": "MouseEvent",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "prevMonth",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 146,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "registerOnChange",
+                    "args": [
+                        {
+                            "name": "fn",
+                            "type": "function",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "function": [
+                                {
+                                    "name": "value",
+                                    "type": "DateRange",
+                                    "optional": false,
+                                    "dotDotDotToken": false,
+                                    "deprecated": false,
+                                    "deprecationMessage": ""
+                                }
+                            ]
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 297,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "fn",
+                            "type": "function",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "function": [
+                                {
+                                    "name": "value",
+                                    "type": "DateRange",
+                                    "optional": false,
+                                    "dotDotDotToken": false,
+                                    "deprecated": false,
+                                    "deprecationMessage": ""
+                                }
+                            ],
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "registerOnTouched",
+                    "args": [
+                        {
+                            "name": "fn",
+                            "type": "function",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "function": []
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 300,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "fn",
+                            "type": "function",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "function": [],
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "reset",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 208,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "selectPreset",
+                    "args": [
+                        {
+                            "name": "key",
+                            "type": "string",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 97,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "key",
+                            "type": "string",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "toggleDropdown",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 93,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "updateLabel",
+                    "args": [
+                        {
+                            "name": "range",
+                            "type": "DateRange",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 221,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "modifierKind": [
+                        123
+                    ],
+                    "jsdoctags": [
+                        {
+                            "name": "range",
+                            "type": "DateRange",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "writeValue",
+                    "args": [
+                        {
+                            "name": "value",
+                            "type": "DateRange",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 290,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "value",
+                            "type": "DateRange",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [
+                {
+                    "name": "document:mousedown",
+                    "args": [
+                        {
+                            "name": "event",
+                            "type": "MouseEvent",
+                            "optional": false,
+                            "dotDotDotToken": false,
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "argsDecorator": [
+                        "$event"
+                    ],
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "line": 80
+                }
+            ],
+            "standalone": true,
+            "imports": [
+                {
+                    "name": "CommonModule",
+                    "type": "module"
+                },
+                {
+                    "name": "FormsModule",
+                    "type": "module"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import {\r\n  Component,\r\n  OnInit,\r\n  HostListener,\r\n  ElementRef,\r\n  Output,\r\n  EventEmitter,\r\n  forwardRef,\r\n} from '@angular/core';\r\nimport { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';\r\nimport { CommonModule } from '@angular/common';\r\nimport { FormsModule } from '@angular/forms';\r\n\r\nexport interface DateRange {\r\n  start: Date | null;\r\n  end: Date | null;\r\n  preset?: string;\r\n}\r\n\r\ninterface CalendarDay {\r\n  date: Date;\r\n  currentMonth: boolean;\r\n  isToday: boolean;\r\n  isStart: boolean;\r\n  isEnd: boolean;\r\n  inRange: boolean;\r\n  disabled: boolean;\r\n}\r\n\r\nconst PRESETS = [\r\n  { label: 'Today', key: 'today' },\r\n  { label: 'Yesterday', key: 'yesterday' },\r\n  { label: 'Last week', key: 'last_week' },\r\n  { label: 'Last month', key: 'last_month' },\r\n  { label: 'Last quarter', key: 'last_quarter' },\r\n];\r\n\r\n@Component({\r\n  selector: 'app-date-picker',\r\n  standalone: true,\r\n  imports: [CommonModule, FormsModule],\r\n  templateUrl: './date-picker.component.html',\r\n  styleUrls: ['./date-picker.component.scss'],\r\n  providers: [\r\n    {\r\n      provide: NG_VALUE_ACCESSOR,\r\n      useExisting: forwardRef(() => DatePickerComponent),\r\n      multi: true,\r\n    },\r\n  ],\r\n})\r\nexport class DatePickerComponent implements OnInit, ControlValueAccessor {\r\n  @Output() rangeSelected = new EventEmitter<DateRange>();\r\n\r\n  isOpen = false;\r\n  presets = PRESETS;\r\n  weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];\r\n\r\n  viewDate: Date = new Date();\r\n  hoverDate: Date | null = null;\r\n\r\n  selectedPreset: string | null = null;\r\n  startDate: Date | null = null;\r\n  endDate: Date | null = null;\r\n  selecting: 'start' | 'end' = 'start';\r\n\r\n  calendarDays: CalendarDay[] = [];\r\n  displayLabel = 'Select date range';\r\n\r\n  private onChange: (value: DateRange) => void = () => {};\r\n  private onTouched: () => void = () => {};\r\n\r\n  constructor(private elRef: ElementRef) {}\r\n\r\n  ngOnInit(): void {\r\n    this.buildCalendar();\r\n  }\r\n\r\n  @HostListener('document:mousedown', ['$event'])\r\n  onDocumentMousedown(event: MouseEvent): void {\r\n    if (!this.elRef.nativeElement.contains(event.target)) {\r\n      this.isOpen = false;\r\n    }\r\n  }\r\n\r\n  get monthLabel(): string {\r\n    return this.viewDate.toLocaleString('default', {\r\n      month: 'long',\r\n      year: 'numeric',\r\n    });\r\n  }\r\n\r\n  toggleDropdown(): void {\r\n    this.isOpen = !this.isOpen;\r\n  }\r\n\r\n  selectPreset(key: string): void {\r\n    this.selectedPreset = key;\r\n    const today = new Date();\r\n    today.setHours(0, 0, 0, 0);\r\n\r\n    switch (key) {\r\n      case 'today':\r\n        this.startDate = new Date(today);\r\n        this.endDate = new Date(today);\r\n        break;\r\n      case 'yesterday': {\r\n        const y = new Date(today);\r\n        y.setDate(y.getDate() - 1);\r\n        this.startDate = y;\r\n        this.endDate = new Date(y);\r\n        break;\r\n      }\r\n      case 'last_week': {\r\n        const end = new Date(today);\r\n        end.setDate(today.getDate() - today.getDay()); // last Sunday\r\n        const start = new Date(end);\r\n        start.setDate(end.getDate() - 6);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n      case 'last_month': {\r\n        const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);\r\n        const end = new Date(today.getFullYear(), today.getMonth(), 0);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n      case 'last_quarter': {\r\n        const q = Math.floor(today.getMonth() / 3);\r\n        const start = new Date(today.getFullYear(), (q - 1) * 3, 1);\r\n        const end = new Date(today.getFullYear(), q * 3, 0);\r\n        this.startDate = start;\r\n        this.endDate = end;\r\n        break;\r\n      }\r\n    }\r\n\r\n    this.selecting = 'start';\r\n    this.hoverDate = null;\r\n    this.viewDate = new Date(this.startDate!);\r\n    this.buildCalendar();\r\n  }\r\n\r\n  prevMonth(): void {\r\n    this.viewDate = new Date(\r\n      this.viewDate.getFullYear(),\r\n      this.viewDate.getMonth() - 1,\r\n      1\r\n    );\r\n    this.buildCalendar();\r\n  }\r\n\r\n  nextMonth(): void {\r\n    this.viewDate = new Date(\r\n      this.viewDate.getFullYear(),\r\n      this.viewDate.getMonth() + 1,\r\n      1\r\n    );\r\n    this.buildCalendar();\r\n  }\r\n\r\n  onDayHover(day: CalendarDay): void {\r\n    if (this.selecting === 'end' && this.startDate) {\r\n      this.hoverDate = day.date;\r\n      this.buildCalendar();\r\n    }\r\n  }\r\n\r\n  onDayClick(day: CalendarDay): void {\r\n    this.selectedPreset = null;\r\n\r\n    if (this.selecting === 'start') {\r\n      this.startDate = new Date(day.date);\r\n      this.endDate = null;\r\n      this.hoverDate = null;\r\n      this.selecting = 'end';\r\n    } else {\r\n      const clicked = new Date(day.date);\r\n      if (clicked < this.startDate!) {\r\n        // Clicked before start — swap\r\n        this.endDate = new Date(this.startDate!);\r\n        this.startDate = clicked;\r\n      } else {\r\n        this.endDate = clicked;\r\n      }\r\n      this.selecting = 'start';\r\n      this.hoverDate = null;\r\n    }\r\n\r\n    this.buildCalendar();\r\n  }\r\n\r\n  confirm(): void {\r\n    if (!this.startDate) return;\r\n    const range: DateRange = {\r\n      start: this.startDate,\r\n      end: this.endDate ?? this.startDate,\r\n      preset: this.selectedPreset ?? undefined,\r\n    };\r\n    this.updateLabel(range);\r\n    this.onChange(range);\r\n    this.rangeSelected.emit(range);\r\n    this.isOpen = false;\r\n  }\r\n\r\n  reset(): void {\r\n    this.startDate = null;\r\n    this.endDate = null;\r\n    this.selectedPreset = null;\r\n    this.selecting = 'start';\r\n    this.hoverDate = null;\r\n    this.displayLabel = 'Select date range';\r\n    this.buildCalendar();\r\n    const range: DateRange = { start: null, end: null };\r\n    this.onChange(range);\r\n    this.rangeSelected.emit(range);\r\n  }\r\n\r\n  private updateLabel(range: DateRange): void {\r\n    if (this.selectedPreset) {\r\n      const p = PRESETS.find((p) => p.key === this.selectedPreset);\r\n      this.displayLabel = p ? p.label : this.formatRange(range);\r\n    } else {\r\n      this.displayLabel = this.formatRange(range);\r\n    }\r\n  }\r\n\r\n  private formatRange(range: DateRange): string {\r\n    const fmt = (d: Date) =>\r\n      d.toLocaleDateString('en-US', {\r\n        month: 'short',\r\n        day: 'numeric',\r\n        year: 'numeric',\r\n      });\r\n    if (!range.start) return 'Select date range';\r\n    if (!range.end || range.start.getTime() === range.end.getTime())\r\n      return fmt(range.start);\r\n    return `${fmt(range.start)} – ${fmt(range.end)}`;\r\n  }\r\n\r\n  buildCalendar(): void {\r\n    const year = this.viewDate.getFullYear();\r\n    const month = this.viewDate.getMonth();\r\n    const firstDay = new Date(year, month, 1);\r\n    const today = new Date();\r\n    today.setHours(0, 0, 0, 0);\r\n\r\n    // Monday-based: getDay() returns 0=Sun, adjust\r\n    let startOffset = firstDay.getDay() - 1;\r\n    if (startOffset < 0) startOffset = 6;\r\n\r\n    const days: CalendarDay[] = [];\r\n    const calStart = new Date(firstDay);\r\n    calStart.setDate(calStart.getDate() - startOffset);\r\n\r\n    const effectiveEnd = this.endDate ?? this.hoverDate;\r\n\r\n    for (let i = 0; i < 42; i++) {\r\n      const date = new Date(calStart);\r\n      date.setDate(calStart.getDate() + i);\r\n      date.setHours(0, 0, 0, 0);\r\n\r\n      const isStart =\r\n        !!this.startDate && date.getTime() === this.startDate.getTime();\r\n      const isEnd =\r\n        !!effectiveEnd && date.getTime() === effectiveEnd.getTime();\r\n      const inRange =\r\n        !!this.startDate &&\r\n        !!effectiveEnd &&\r\n        date > this.startDate &&\r\n        date < effectiveEnd;\r\n\r\n      days.push({\r\n        date,\r\n        currentMonth: date.getMonth() === month,\r\n        isToday: date.getTime() === today.getTime(),\r\n        isStart,\r\n        isEnd,\r\n        inRange,\r\n        disabled: false,\r\n      });\r\n    }\r\n\r\n    this.calendarDays = days;\r\n  }\r\n\r\n  // ControlValueAccessor\r\n  writeValue(value: DateRange): void {\r\n    if (value) {\r\n      this.startDate = value.start;\r\n      this.endDate = value.end;\r\n      this.buildCalendar();\r\n    }\r\n  }\r\n  registerOnChange(fn: (value: DateRange) => void): void {\r\n    this.onChange = fn;\r\n  }\r\n  registerOnTouched(fn: () => void): void {\r\n    this.onTouched = fn;\r\n  }\r\n}",
+            "assetsDirs": [],
+            "styleUrlsData": [
+                {
+                    "data": "$font: 'Poppins', system-ui, sans-serif;\r\n$radius-sm: 8px;\r\n$radius-md: 12px;\r\n$radius-lg: 16px;\r\n\r\n$color-bg: #ffffff;\r\n$color-surface: #f9f8f6;\r\n$color-border: #e8e5e0;\r\n$color-text: #1a1917;\r\n$color-muted: #a09d98;\r\n$color-accent: #1a1917;\r\n$color-range-bg: #f0ede8;\r\n$color-hover: #f4f2ef;\r\n$color-preset-active: #1a1917;\r\n\r\n// Wrapper \r\n.drp-wrapper {\r\n  position: relative;\r\n  display: inline-block;\r\n  font-family: $font;\r\n  font-size: 14px;\r\n  color: $color-text;\r\n}\r\n\r\n// Trigger \r\n.drp-trigger {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 8px;\r\n  padding: 9px 14px;\r\n  background: $color-bg;\r\n  border: 1.5px solid $color-border;\r\n  border-radius: $radius-md;\r\n  cursor: pointer;\r\n  font-family: $font;\r\n  font-size: 14px;\r\n  color: $color-text;\r\n  white-space: nowrap;\r\n  transition: border-color 0.15s, box-shadow 0.15s;\r\n\r\n  &:hover {\r\n    border-color: darken($color-border, 10%);\r\n  }\r\n\r\n  &.open {\r\n    border-color: $color-accent;\r\n    box-shadow: 0 0 0 3px rgba(26, 25, 23, 0.08);\r\n  }\r\n\r\n  .drp-icon-cal {\r\n    width: 15px;\r\n    height: 15px;\r\n    color: $color-muted;\r\n    flex-shrink: 0;\r\n  }\r\n\r\n  .drp-icon-chevron {\r\n    width: 10px;\r\n    height: 6px;\r\n    color: $color-muted;\r\n    flex-shrink: 0;\r\n    transition: transform 0.2s ease;\r\n\r\n    &.rotated {\r\n      transform: rotate(180deg);\r\n    }\r\n  }\r\n}\r\n\r\n// Panel\r\n.drp-panel {\r\n  position: absolute;\r\n  top: calc(100% + 6px);\r\n  left: 0;\r\n  z-index: 1000;\r\n  background: $color-bg;\r\n  border: 1.5px solid $color-border;\r\n  border-radius: $radius-lg;\r\n  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);\r\n  overflow: hidden;\r\n  animation: drp-open 0.15s ease;\r\n}\r\n\r\n@keyframes drp-open {\r\n  from { opacity: 0; transform: translateY(-4px); }\r\n  to   { opacity: 1; transform: translateY(0); }\r\n}\r\n\r\n// Layout\r\n.drp-layout {\r\n  display: flex;\r\n}\r\n\r\n// Presets\r\n.drp-presets {\r\n  display: flex;\r\n  flex-direction: column;\r\n  padding: 16px 0;\r\n  border-right: 1.5px solid $color-border;\r\n  min-width: 130px;\r\n  gap: 2px;\r\n}\r\n\r\n.drp-preset-btn {\r\n  display: block;\r\n  width: 100%;\r\n  padding: 8px 20px;\r\n  background: none;\r\n  border: none;\r\n  text-align: left;\r\n  font-family: $font;\r\n  font-size: 14px;\r\n  color: $color-text;\r\n  cursor: pointer;\r\n  border-radius: 0;\r\n  transition: background 0.1s;\r\n\r\n  &:hover {\r\n    background: $color-hover;\r\n  }\r\n\r\n  &.active {\r\n    font-weight: 600;\r\n    color: $color-preset-active;\r\n    background: $color-hover;\r\n  }\r\n}\r\n\r\n// Actions\r\n.drp-actions {\r\n  margin-top: auto;\r\n  padding: 16px 20px 0;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n}\r\n\r\n.drp-action-confirm,\r\n.drp-action-reset {\r\n  background: none;\r\n  border: none;\r\n  font-family: $font;\r\n  font-size: 14px;\r\n  font-weight: 700;\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n  text-align: left;\r\n  color: $color-text;\r\n  transition: opacity 0.15s;\r\n\r\n  &:hover {\r\n    opacity: 0.6;\r\n  }\r\n}\r\n\r\n.drp-action-reset {\r\n  font-weight: 700;\r\n}\r\n\r\n// Calendar\r\n.drp-calendar {\r\n  padding: 16px 20px 20px;\r\n  width: 290px;\r\n}\r\n\r\n.drp-cal-header {\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: space-between;\r\n  margin-bottom: 14px;\r\n}\r\n\r\n.drp-month-label {\r\n  font-weight: 700;\r\n  font-size: 15px;\r\n}\r\n\r\n.drp-nav {\r\n  display: flex;\r\n  gap: 4px;\r\n}\r\n\r\n.drp-nav-btn {\r\n  width: 28px;\r\n  height: 28px;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n  background: none;\r\n  border: 1.5px solid $color-border;\r\n  border-radius: $radius-sm;\r\n  cursor: pointer;\r\n  transition: background 0.1s, border-color 0.1s;\r\n\r\n  svg {\r\n    width: 6px;\r\n    height: 10px;\r\n    color: $color-text;\r\n  }\r\n\r\n  &:hover {\r\n    background: $color-hover;\r\n    border-color: darken($color-border, 8%);\r\n  }\r\n}\r\n\r\n// Grid \r\n.drp-grid {\r\n  display: grid;\r\n  grid-template-columns: repeat(7, 1fr);\r\n  row-gap: 2px;\r\n}\r\n\r\n.drp-weekday {\r\n  text-align: center;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  color: $color-muted;\r\n  padding-bottom: 8px;\r\n  letter-spacing: 0.02em;\r\n}\r\n\r\n// Days\r\n.drp-day {\r\n  position: relative;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n  height: 36px;\r\n  cursor: pointer;\r\n\r\n  &.in-range {\r\n    background: $color-range-bg;\r\n  }\r\n\r\n  &.start:not(.end) {\r\n    background: linear-gradient(to left, $color-range-bg 50%, transparent 50%);\r\n  }\r\n\r\n  &.end:not(.start) {\r\n    background: linear-gradient(to right, $color-range-bg 50%, transparent 50%);\r\n  }\r\n\r\n  &.start.end {\r\n    background: transparent;\r\n  }\r\n\r\n  .drp-day-inner {\r\n    position: relative;\r\n    z-index: 1;\r\n    width: 32px;\r\n    height: 32px;\r\n    display: flex;\r\n    align-items: center;\r\n    justify-content: center;\r\n    border-radius: 50%;\r\n    font-size: 13px;\r\n    transition: background 0.1s, color 0.1s;\r\n  }\r\n\r\n  &:hover:not(.start):not(.end) .drp-day-inner {\r\n    background: $color-hover;\r\n  }\r\n\r\n  &.other-month {\r\n    .drp-day-inner {\r\n      color: $color-muted;\r\n    }\r\n  }\r\n\r\n  &.today:not(.start):not(.end) {\r\n    .drp-day-inner {\r\n      border: 1.5px solid $color-text;\r\n    }\r\n  }\r\n\r\n  &.start .drp-day-inner,\r\n  &.end .drp-day-inner {\r\n    background: $color-accent;\r\n    color: #ffffff;\r\n    font-weight: 600;\r\n  }\r\n}",
+                    "styleUrl": "./date-picker.component.scss"
+                }
+            ],
+            "stylesData": "",
+            "constructorObj": {
+                "name": "constructor",
+                "description": "",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "args": [
+                    {
+                        "name": "elRef",
+                        "type": "ElementRef",
+                        "optional": false,
+                        "dotDotDotToken": false,
+                        "deprecated": false,
+                        "deprecationMessage": ""
+                    }
+                ],
+                "line": 71,
+                "jsdoctags": [
+                    {
+                        "name": "elRef",
+                        "type": "ElementRef",
+                        "optional": false,
+                        "dotDotDotToken": false,
+                        "deprecated": false,
+                        "deprecationMessage": "",
+                        "tagName": {
+                            "text": "param"
+                        }
+                    }
+                ]
+            },
+            "extends": [],
+            "implements": [
+                "OnInit",
+                "ControlValueAccessor"
+            ],
+            "accessors": {
+                "monthLabel": {
+                    "name": "monthLabel",
+                    "getSignature": {
+                        "name": "monthLabel",
+                        "type": "string",
+                        "returnType": "string",
+                        "line": 86
+                    }
+                }
+            },
+            "templateData": "<div class=\"drp-wrapper\">\r\n  <button class=\"drp-trigger\" (click)=\"toggleDropdown()\" [class.open]=\"isOpen\">\r\n    <svg class=\"drp-icon-cal\" viewBox=\"0 0 16 16\" fill=\"none\">\r\n      <rect x=\"1\" y=\"2\" width=\"14\" height=\"13\" rx=\"2\" stroke=\"currentColor\" stroke-width=\"1.4\"/>\r\n      <path d=\"M1 6h14\" stroke=\"currentColor\" stroke-width=\"1.4\"/>\r\n      <path d=\"M5 1v2M11 1v2\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/>\r\n    </svg>\r\n    <span>{{ displayLabel }}</span>\r\n    <svg class=\"drp-icon-chevron\" [class.rotated]=\"isOpen\" viewBox=\"0 0 10 6\" fill=\"none\">\r\n      <path d=\"M1 1l4 4 4-4\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\r\n    </svg>\r\n  </button>\r\n\r\n  <div class=\"drp-panel\" *ngIf=\"isOpen\" (mousedown)=\"$event.stopPropagation()\">\r\n    <div class=\"drp-layout\">\r\n\r\n      <div class=\"drp-presets\">\r\n        <button\r\n          *ngFor=\"let preset of presets\"\r\n          class=\"drp-preset-btn\"\r\n          [class.active]=\"selectedPreset === preset.key\"\r\n          (click)=\"selectPreset(preset.key)\"\r\n        >\r\n          {{ preset.label }}\r\n        </button>\r\n\r\n        <div class=\"drp-actions\">\r\n          <button class=\"drp-action-confirm\" (click)=\"confirm()\">Confirm</button>\r\n          <button class=\"drp-action-reset\" (click)=\"reset()\">Reset</button>\r\n        </div>\r\n      </div>\r\n\r\n      <div class=\"drp-calendar\">\r\n        <div class=\"drp-cal-header\">\r\n          <span class=\"drp-month-label\">{{ monthLabel }}</span>\r\n          <div class=\"drp-nav\">\r\n            <button class=\"drp-nav-btn\" (click)=\"prevMonth()\">\r\n              <svg viewBox=\"0 0 6 10\" fill=\"none\">\r\n                <path d=\"M5 1L1 5l4 4\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\r\n              </svg>\r\n            </button>\r\n            <button class=\"drp-nav-btn\" (click)=\"nextMonth()\">\r\n              <svg viewBox=\"0 0 6 10\" fill=\"none\">\r\n                <path d=\"M1 1l4 4-4 4\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\r\n              </svg>\r\n            </button>\r\n          </div>\r\n        </div>\r\n\r\n        <div class=\"drp-grid\">\r\n          <div class=\"drp-weekday\" *ngFor=\"let d of weekDays\">{{ d }}</div>\r\n\r\n          <div\r\n            *ngFor=\"let day of calendarDays\"\r\n            class=\"drp-day\"\r\n            [class.other-month]=\"!day.currentMonth\"\r\n            [class.today]=\"day.isToday\"\r\n            [class.start]=\"day.isStart\"\r\n            [class.end]=\"day.isEnd\"\r\n            [class.in-range]=\"day.inRange\"\r\n            [class.range-start-cap]=\"day.isStart && (day.inRange || day.isEnd)\"\r\n            [class.range-end-cap]=\"day.isEnd && (day.inRange || day.isStart)\"\r\n            (mousedown)=\"onDayClick(day); $event.preventDefault()\"\r\n            (mouseenter)=\"onDayHover(day)\"\r\n          >\r\n            <span class=\"drp-day-inner\">{{ day.date.getDate() }}</span>\r\n          </div>\r\n        </div>\r\n      </div>\r\n\r\n    </div>\r\n  </div>\r\n</div>"
+        },
+        {
+            "name": "Footer",
+            "id": "component-Footer-8277205170c75e1e557d31761c0b4a5611963a6c560c5c9aa6c3b3d26a41a6a24096187593e6f7d6c0d92313667cfb2eb370584b4951a1ac66adc78f5b8dc0e4",
+            "file": "src/app/components/footer/footer.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-footer",
+            "styleUrls": [],
+            "styles": [],
+            "templateUrl": [
+                "./footer.html"
+            ],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": false,
+            "imports": [],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component } from '@angular/core';\r\n\r\n@Component({\r\n  selector: 'app-footer',\r\n  imports: [],\r\n  templateUrl: './footer.html',\r\n  styleUrl: './footer.scss',\r\n})\r\nexport class Footer {}\r\n     ",
+            "styleUrl": "./footer.scss",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "extends": [],
+            "templateData": "<p>footer works!</p>\r\n"
+        },
+        {
+            "name": "Header",
+            "id": "component-Header-97f6bc50e3a96ae8bba624162b6778e18bbb4423ff026ed25c7ad0bd22b5a8d48e1288ae0b35686e4fc36466728dceb27c9f816a4592e29a731021e46ce9dc3e",
+            "file": "src/app/components/header/header.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-header",
+            "styleUrls": [],
+            "styles": [],
+            "templateUrl": [
+                "./header.html"
+            ],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": false,
+            "imports": [
+                {
+                    "name": "RouterLink"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component } from '@angular/core';\r\nimport { RouterLink } from '@angular/router';\r\n\r\n@Component({\r\n  selector: 'app-header',\r\n  imports: [RouterLink],\r\n  templateUrl: './header.html',\r\n  styleUrl: './header.scss',\r\n})\r\nexport class Header {}\r\n",
+            "styleUrl": "./header.scss",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "extends": [],
+            "templateData": "<header class=\"header\">\r\n  <div class=\"left\">\r\n    <button class=\"menu-btn\">☰</button>\r\n  </div>\r\n\r\n  <div class=\"right\">\r\n    <span class=\"profile-text\">Profile</span>\r\n    <div class=\"avatar\">JD</div>\r\n  </div>\r\n</header>"
+        },
+        {
+            "name": "HeaderComponent",
+            "id": "component-HeaderComponent-48b9abe37706bc42f20cfa97ed9f943678344ea7d254c0c82183c657750c2191b43486fe730c778627b2ea6aa0e2f33a7abcf3ce08b68ad18b062ad99ea97acb",
+            "file": "src/stories/header.component.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "storybook-header",
+            "styleUrls": [
+                "./header.css"
+            ],
+            "styles": [],
+            "template": "<header>  <div class=\"storybook-header\">\n    <div>\n      <svg width=\"32\" height=\"32\" viewBox=\"0 0 32 32\" xmlns=\"http://www.w3.org/2000/svg\">\n        <g fill=\"none\" fillRule=\"evenodd\">\n          <path\n            d=\"M10 0h12a10 10 0 0110 10v12a10 10 0 01-10 10H10A10 10 0 010 22V10A10 10 0 0110 0z\"\n            fill=\"#FFF\"\n          />\n          <path\n            d=\"M5.3 10.6l10.4 6v11.1l-10.4-6v-11zm11.4-6.2l9.7 5.5-9.7 5.6V4.4z\"\n            fill=\"#555AB9\"\n          />\n          <path d=\"M27.2 10.6v11.2l-10.5 6V16.5l10.5-6zM15.7 4.4v11L6 10l9.7-5.5z\" fill=\"#91BAF8\" />\n        </g>\n      </svg>\n      <h1>Acme</h1>\n    </div>\n    <div>\n      <div *ngIf=\"user\">\n        <span class=\"welcome\">\n          Welcome, <b>{{ user.name }}</b\n          >!\n        </span>\n        <storybook-button\n          *ngIf=\"user\"\n          size=\"small\"\n          (onClick)=\"onLogout.emit($event)\"\n          label=\"Log out\"\n        ></storybook-button>\n      </div>\n      <div *ngIf=\"!user\">\n        <storybook-button\n          *ngIf=\"!user\"\n          size=\"small\"\n          class=\"margin-left\"\n          (onClick)=\"onLogin.emit($event)\"\n          label=\"Log in\"\n        ></storybook-button>\n        <storybook-button\n          *ngIf=\"!user\"\n          size=\"small\"\n          [primary]=\"true\"\n          class=\"margin-left\"\n          (onClick)=\"onCreateAccount.emit($event)\"\n          label=\"Sign up\"\n        ></storybook-button>\n      </div>\n    </div>\n  </div>\n</header>",
+            "templateUrl": [],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [
+                {
+                    "name": "user",
+                    "defaultValue": "null",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "line": 66,
+                    "type": "User | null",
+                    "decorators": []
+                }
+            ],
+            "outputsClass": [
+                {
+                    "name": "onCreateAccount",
+                    "defaultValue": "new EventEmitter<Event>()",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "line": 75,
+                    "type": "EventEmitter"
+                },
+                {
+                    "name": "onLogin",
+                    "defaultValue": "new EventEmitter<Event>()",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "line": 69,
+                    "type": "EventEmitter"
+                },
+                {
+                    "name": "onLogout",
+                    "defaultValue": "new EventEmitter<Event>()",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "line": 72,
+                    "type": "EventEmitter"
+                }
+            ],
+            "propertiesClass": [],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": true,
+            "imports": [
+                {
+                    "name": "CommonModule",
+                    "type": "module"
+                },
+                {
+                    "name": "ButtonComponent",
+                    "type": "component"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component, Input, Output, EventEmitter } from '@angular/core';\nimport { CommonModule } from '@angular/common';\n\nimport { ButtonComponent } from './button.component';\nimport type { User } from './user';\n\n@Component({\n  selector: 'storybook-header',\n  standalone: true,\n  imports: [CommonModule, ButtonComponent],\n  template: `<header>\n  <div class=\"storybook-header\">\n    <div>\n      <svg width=\"32\" height=\"32\" viewBox=\"0 0 32 32\" xmlns=\"http://www.w3.org/2000/svg\">\n        <g fill=\"none\" fillRule=\"evenodd\">\n          <path\n            d=\"M10 0h12a10 10 0 0110 10v12a10 10 0 01-10 10H10A10 10 0 010 22V10A10 10 0 0110 0z\"\n            fill=\"#FFF\"\n          />\n          <path\n            d=\"M5.3 10.6l10.4 6v11.1l-10.4-6v-11zm11.4-6.2l9.7 5.5-9.7 5.6V4.4z\"\n            fill=\"#555AB9\"\n          />\n          <path d=\"M27.2 10.6v11.2l-10.5 6V16.5l10.5-6zM15.7 4.4v11L6 10l9.7-5.5z\" fill=\"#91BAF8\" />\n        </g>\n      </svg>\n      <h1>Acme</h1>\n    </div>\n    <div>\n      <div *ngIf=\"user\">\n        <span class=\"welcome\">\n          Welcome, <b>{{ user.name }}</b\n          >!\n        </span>\n        <storybook-button\n          *ngIf=\"user\"\n          size=\"small\"\n          (onClick)=\"onLogout.emit($event)\"\n          label=\"Log out\"\n        ></storybook-button>\n      </div>\n      <div *ngIf=\"!user\">\n        <storybook-button\n          *ngIf=\"!user\"\n          size=\"small\"\n          class=\"margin-left\"\n          (onClick)=\"onLogin.emit($event)\"\n          label=\"Log in\"\n        ></storybook-button>\n        <storybook-button\n          *ngIf=\"!user\"\n          size=\"small\"\n          [primary]=\"true\"\n          class=\"margin-left\"\n          (onClick)=\"onCreateAccount.emit($event)\"\n          label=\"Sign up\"\n        ></storybook-button>\n      </div>\n    </div>\n  </div>\n</header>`,\n  styleUrls: ['./header.css'],\n})\nexport class HeaderComponent {\n  @Input()\n  user: User | null = null;\n\n  @Output()\n  onLogin = new EventEmitter<Event>();\n\n  @Output()\n  onLogout = new EventEmitter<Event>();\n\n  @Output()\n  onCreateAccount = new EventEmitter<Event>();\n}\n",
+            "assetsDirs": [],
+            "styleUrlsData": [
+                {
+                    "data": ".storybook-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  border-bottom: 1px solid rgba(0, 0, 0, 0.1);\n  padding: 15px 20px;\n  font-family: 'Nunito Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;\n}\n\n.storybook-header svg {\n  display: inline-block;\n  vertical-align: top;\n}\n\n.storybook-header h1 {\n  display: inline-block;\n  vertical-align: top;\n  margin: 6px 0 6px 10px;\n  font-weight: 700;\n  font-size: 20px;\n  line-height: 1;\n}\n\n.storybook-header button + button {\n  margin-left: 10px;\n}\n\n.storybook-header .welcome {\n  margin-right: 10px;\n  color: #333;\n  font-size: 14px;\n}\n",
+                    "styleUrl": "./header.css"
+                }
+            ],
+            "stylesData": "",
+            "extends": []
+        },
+        {
+            "name": "Login",
+            "id": "component-Login-94f5150da1bcadd2b40717edd4d34fbf95295edddbda23ba1b7aef9d88da7e117ef2f0411afa763c9842c0caa15b8e33d93045cb9741ce925b7846cf7d503b21",
+            "file": "src/app/account/login/login.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-login",
+            "styleUrls": [],
+            "styles": [],
+            "templateUrl": [
+                "./login.html"
+            ],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": false,
+            "imports": [
+                {
+                    "name": "RouterLink"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component } from '@angular/core';\r\nimport { RouterLink } from \"@angular/router\";\r\n\r\n\r\n@Component({\r\n  selector: 'app-login',\r\n  imports: [RouterLink],\r\n  templateUrl: './login.html',\r\n  styleUrl: './login.scss',\r\n})\r\nexport class Login {}\r\n",
+            "styleUrl": "./login.scss",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "extends": [],
+            "templateData": "<div class=\"login\">\r\n    <div class=\"login__card\">\r\n\r\n        <div class=\"logo\">\r\n            <div class=\"logo__circle\"><a routerLink=\"/\" class=\"logo__brand\">XB</a></div>\r\n            <span class=\"logo__text\">XBank</span>\r\n        </div>\r\n\r\n        <h2 class=\"login__title\">Login to XBank Admin Portal</h2>\r\n\r\n        <form class=\"login__form\">\r\n\r\n            <div class=\"input\">\r\n                <label class=\"input__label\">Email</label>\r\n                <div class=\"input__wrapper\">\r\n                    <input class=\"input__field\" type=\"email\" placeholder=\"Enter Email\">\r\n                    <span class=\"input__icon\">✉</span>\r\n                </div>\r\n            </div>\r\n\r\n            <div class=\"input\">\r\n                <label class=\"input__label\">Password</label>\r\n                <div class=\"input__wrapper\">\r\n                    <input class=\"input__field\" type=\"password\" placeholder=\"Enter Password\">\r\n                    <span class=\"input__icon\">👁</span>\r\n                </div>\r\n            </div>\r\n\r\n            <div class=\"login__options\">\r\n                <label class=\"login__remember\">\r\n                    <input type=\"checkbox\" checked>\r\n                    Remember me\r\n                </label>\r\n\r\n                <a class=\"login__forgot\" href=\"#\">Forgot password?</a>\r\n            </div>\r\n\r\n            <button class=\"login__button\" type=\"submit\" routerLink=\"/dashboard\">\r\n                Login\r\n            </button>\r\n        </form>\r\n\r\n    </div>\r\n</div>"
+        },
+        {
+            "name": "PageComponent",
+            "id": "component-PageComponent-21dd6eb370b4983b5c21c84d40e6f54d266a9d9af9889e6e76b35c43058bd53b3e451bad089d5adf4bea46647ba10265a2fa8cb15630398e75636307d4817fc6",
+            "file": "src/stories/page.component.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "storybook-page",
+            "styleUrls": [
+                "./page.css"
+            ],
+            "styles": [],
+            "template": "<article>  <storybook-header\n    [user]=\"user\"\n    (onLogout)=\"doLogout()\"\n    (onLogin)=\"doLogin()\"\n    (onCreateAccount)=\"doCreateAccount()\"\n  ></storybook-header>\n  <section class=\"storybook-page\">\n    <h2>Pages in Storybook</h2>\n    <p>\n      We recommend building UIs with a\n      <a href=\"https://componentdriven.org\" target=\"_blank\" rel=\"noopener noreferrer\">\n        <strong>component-driven</strong>\n      </a>\n      process starting with atomic components and ending with pages.\n    </p>\n    <p>\n      Render pages with mock data. This makes it easy to build and review page states without\n      needing to navigate to them in your app. Here are some handy patterns for managing page data\n      in Storybook:\n    </p>\n    <ul>\n      <li>\n        Use a higher-level connected component. Storybook helps you compose such data from the\n        \"args\" of child component stories\n      </li>\n      <li>\n        Assemble data in the page component from your services. You can mock these services out\n        using Storybook.\n      </li>\n    </ul>\n    <p>\n      Get a guided tutorial on component-driven development at\n      <a href=\"https://storybook.js.org/tutorials/\" target=\"_blank\" rel=\"noopener noreferrer\">\n        Storybook tutorials\n      </a>\n      . Read more in the\n      <a href=\"https://storybook.js.org/docs\" target=\"_blank\" rel=\"noopener noreferrer\"> docs </a>\n      .\n    </p>\n    <div class=\"tip-wrapper\">\n      <span class=\"tip\">Tip</span> Adjust the width of the canvas with the\n      <svg width=\"10\" height=\"10\" viewBox=\"0 0 12 12\" xmlns=\"http://www.w3.org/2000/svg\">\n        <g fill=\"none\" fillRule=\"evenodd\">\n          <path\n            d=\"M1.5 5.2h4.8c.3 0 .5.2.5.4v5.1c-.1.2-.3.3-.4.3H1.4a.5.5 0 01-.5-.4V5.7c0-.3.2-.5.5-.5zm0-2.1h6.9c.3 0 .5.2.5.4v7a.5.5 0 01-1 0V4H1.5a.5.5 0 010-1zm0-2.1h9c.3 0 .5.2.5.4v9.1a.5.5 0 01-1 0V2H1.5a.5.5 0 010-1zm4.3 5.2H2V10h3.8V6.2z\"\n            id=\"a\"\n            fill=\"#999\"\n          />\n        </g>\n      </svg>\n      Viewports addon in the toolbar\n    </div>\n  </section>\n</article>",
+            "templateUrl": [],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [
+                {
+                    "name": "user",
+                    "defaultValue": "null",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "User | null",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 69
+                }
+            ],
+            "methodsClass": [
+                {
+                    "name": "doCreateAccount",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 79,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "doLogin",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 75,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "doLogout",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 71,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                }
+            ],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": true,
+            "imports": [
+                {
+                    "name": "CommonModule",
+                    "type": "module"
+                },
+                {
+                    "name": "HeaderComponent",
+                    "type": "component"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component } from '@angular/core';\nimport { CommonModule } from '@angular/common';\n\nimport { HeaderComponent } from './header.component';\nimport type { User } from './user';\n\n@Component({\n  selector: 'storybook-page',\n  standalone: true,\n  imports: [CommonModule, HeaderComponent],\n  template: `<article>\n  <storybook-header\n    [user]=\"user\"\n    (onLogout)=\"doLogout()\"\n    (onLogin)=\"doLogin()\"\n    (onCreateAccount)=\"doCreateAccount()\"\n  ></storybook-header>\n  <section class=\"storybook-page\">\n    <h2>Pages in Storybook</h2>\n    <p>\n      We recommend building UIs with a\n      <a href=\"https://componentdriven.org\" target=\"_blank\" rel=\"noopener noreferrer\">\n        <strong>component-driven</strong>\n      </a>\n      process starting with atomic components and ending with pages.\n    </p>\n    <p>\n      Render pages with mock data. This makes it easy to build and review page states without\n      needing to navigate to them in your app. Here are some handy patterns for managing page data\n      in Storybook:\n    </p>\n    <ul>\n      <li>\n        Use a higher-level connected component. Storybook helps you compose such data from the\n        \"args\" of child component stories\n      </li>\n      <li>\n        Assemble data in the page component from your services. You can mock these services out\n        using Storybook.\n      </li>\n    </ul>\n    <p>\n      Get a guided tutorial on component-driven development at\n      <a href=\"https://storybook.js.org/tutorials/\" target=\"_blank\" rel=\"noopener noreferrer\">\n        Storybook tutorials\n      </a>\n      . Read more in the\n      <a href=\"https://storybook.js.org/docs\" target=\"_blank\" rel=\"noopener noreferrer\"> docs </a>\n      .\n    </p>\n    <div class=\"tip-wrapper\">\n      <span class=\"tip\">Tip</span> Adjust the width of the canvas with the\n      <svg width=\"10\" height=\"10\" viewBox=\"0 0 12 12\" xmlns=\"http://www.w3.org/2000/svg\">\n        <g fill=\"none\" fillRule=\"evenodd\">\n          <path\n            d=\"M1.5 5.2h4.8c.3 0 .5.2.5.4v5.1c-.1.2-.3.3-.4.3H1.4a.5.5 0 01-.5-.4V5.7c0-.3.2-.5.5-.5zm0-2.1h6.9c.3 0 .5.2.5.4v7a.5.5 0 01-1 0V4H1.5a.5.5 0 010-1zm0-2.1h9c.3 0 .5.2.5.4v9.1a.5.5 0 01-1 0V2H1.5a.5.5 0 010-1zm4.3 5.2H2V10h3.8V6.2z\"\n            id=\"a\"\n            fill=\"#999\"\n          />\n        </g>\n      </svg>\n      Viewports addon in the toolbar\n    </div>\n  </section>\n</article>`,\n  styleUrls: ['./page.css'],\n})\nexport class PageComponent {\n  user: User | null = null;\n\n  doLogout() {\n    this.user = null;\n  }\n\n  doLogin() {\n    this.user = { name: 'Jane Doe' };\n  }\n\n  doCreateAccount() {\n    this.user = { name: 'Jane Doe' };\n  }\n}\n",
+            "assetsDirs": [],
+            "styleUrlsData": [
+                {
+                    "data": ".storybook-page {\n  margin: 0 auto;\n  padding: 48px 20px;\n  max-width: 600px;\n  color: #333;\n  font-size: 14px;\n  line-height: 24px;\n  font-family: 'Nunito Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;\n}\n\n.storybook-page h2 {\n  display: inline-block;\n  vertical-align: top;\n  margin: 0 0 4px;\n  font-weight: 700;\n  font-size: 32px;\n  line-height: 1;\n}\n\n.storybook-page p {\n  margin: 1em 0;\n}\n\n.storybook-page a {\n  color: inherit;\n}\n\n.storybook-page ul {\n  margin: 1em 0;\n  padding-left: 30px;\n}\n\n.storybook-page li {\n  margin-bottom: 8px;\n}\n\n.storybook-page .tip {\n  display: inline-block;\n  vertical-align: top;\n  margin-right: 10px;\n  border-radius: 1em;\n  background: #e7fdd8;\n  padding: 4px 12px;\n  color: #357a14;\n  font-weight: 700;\n  font-size: 11px;\n  line-height: 12px;\n}\n\n.storybook-page .tip-wrapper {\n  margin-top: 40px;\n  margin-bottom: 40px;\n  font-size: 13px;\n  line-height: 20px;\n}\n\n.storybook-page .tip-wrapper svg {\n  display: inline-block;\n  vertical-align: top;\n  margin-top: 3px;\n  margin-right: 4px;\n  width: 12px;\n  height: 12px;\n}\n\n.storybook-page .tip-wrapper svg path {\n  fill: #1ea7fd;\n}\n",
+                    "styleUrl": "./page.css"
+                }
+            ],
+            "stylesData": "",
+            "extends": []
+        },
+        {
+            "name": "SideBar",
+            "id": "component-SideBar-b4d7c7e48ee3eb718c70a19df38d06d7767dd45f030627628bfc143ebd2e66fc05a8f8faff3091c82cdb01cc2961b90e0bb2ecebf674dc376e52e02697a53c2e",
+            "file": "src/app/components/side-bar/side-bar.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-side-bar",
+            "styleUrls": [],
+            "styles": [],
+            "templateUrl": [
+                "./side-bar.html"
+            ],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": false,
+            "imports": [
+                {
+                    "name": "RouterLink"
+                },
+                {
+                    "name": "RouterLinkActive"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component } from '@angular/core';\r\nimport { RouterLink, RouterLinkActive } from '@angular/router';\r\n\r\n@Component({\r\n  selector: 'app-side-bar',\r\n  imports: [RouterLink, RouterLinkActive],\r\n  templateUrl: './side-bar.html',\r\n  styleUrl: './side-bar.scss',\r\n})\r\nexport class SideBar {}\r\n",
+            "styleUrl": "./side-bar.scss",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "extends": [],
+            "templateData": "<aside class=\"sidebar\">\r\n  <div class=\"logo\">\r\n    <span class=\"logo__icon\">XB</span>\r\n    <span class=\"logo__text\">XBank</span>\r\n  </div>\r\n\r\n  <nav class=\"menu\">\r\n    <a routerLink=\"/dashboard\" routerLinkActive=\"active\" class=\"menu__item\">\r\n      <div class=\"menu__icon\"><i class=\"ph ph-squares-four\"></i> <span>Dashboard</span></div>\r\n    </a>\r\n\r\n    <a routerLink=\"/user-flow\" routerLinkActive=\"active\" class=\"menu__item\">\r\n      <div class=\"menu__icon\"><i class=\"ph ph-user-list\"></i> <span>Users</span></div> \r\n    </a>\r\n  </nav>\r\n</aside>\r\n           "
+        },
+        {
+            "name": "UserFlow",
+            "id": "component-UserFlow-a0f3f4169ad4815620897e91ad76167389b53a41b090decc6b4a4f091bf63038466c7856c3a53c65f5dae484abb7c4a48bf35e78f240aa0bf1928153ef80e4ae",
+            "file": "src/app/pages/user-flow/user-flow.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-user-flow",
+            "styleUrls": [],
+            "styles": [],
+            "templateUrl": [
+                "./user-flow.html"
+            ],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": false,
+            "imports": [],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component } from '@angular/core';\r\n\r\n@Component({\r\n  selector: 'app-user-flow',\r\n  imports: [],\r\n  templateUrl: './user-flow.html',\r\n  styleUrl: './user-flow.scss',\r\n})\r\nexport class UserFlow {}\r\n",
+            "styleUrl": "./user-flow.scss",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "extends": [],
+            "templateData": "<p>user-flow works!</p>\r\n"
+        }
+    ],
+    "modules": [],
+    "miscellaneous": {
+        "variables": [
+            {
+                "name": "angularApp",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/server.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "unknown",
+                "defaultValue": "new AngularNodeAppEngine()"
+            },
+            {
+                "name": "app",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/server.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "unknown",
+                "defaultValue": "express()"
+            },
+            {
+                "name": "appConfig",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/app/app.config.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "ApplicationConfig",
+                "defaultValue": "{\r\n  providers: [\r\n    provideBrowserGlobalErrorListeners(),\r\n    provideRouter(routes), provideClientHydration(withEventReplay())\r\n  ]\r\n}"
+            },
+            {
+                "name": "bootstrap",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/main.server.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "unknown",
+                "defaultValue": "(context: BootstrapContext) =>\r\n    bootstrapApplication(App, config, context)"
+            },
+            {
+                "name": "browserDistFolder",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/server.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "unknown",
+                "defaultValue": "join(import.meta.dirname, '../browser')"
+            },
+            {
+                "name": "config",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/app/app.config.server.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "unknown",
+                "defaultValue": "mergeApplicationConfig(appConfig, serverConfig)"
+            },
+            {
+                "name": "PRESETS",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/app/components/date-picker.component/date-picker.component.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "[]",
+                "defaultValue": "[\r\n  { label: 'Today', key: 'today' },\r\n  { label: 'Yesterday', key: 'yesterday' },\r\n  { label: 'Last week', key: 'last_week' },\r\n  { label: 'Last month', key: 'last_month' },\r\n  { label: 'Last quarter', key: 'last_quarter' },\r\n]"
+            },
+            {
+                "name": "reqHandler",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/server.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "unknown",
+                "defaultValue": "createNodeRequestHandler(app)",
+                "rawdescription": "Request handler used by the Angular CLI (for dev-server and during build) or Firebase Cloud Functions.",
+                "description": "<p>Request handler used by the Angular CLI (for dev-server and during build) or Firebase Cloud Functions.</p>\n"
+            },
+            {
+                "name": "routes",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/app/app.routes.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "Routes",
+                "defaultValue": "[\r\n    { path: '', component: Login, data: {hideLayout: true}},\r\n    { path: 'dashboard', component: Dashboard, data: {hideLayout: false}},\r\n    { path: 'user-flow', component: UserFlow}\r\n]"
+            },
+            {
+                "name": "serverConfig",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/app/app.config.server.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "ApplicationConfig",
+                "defaultValue": "{\r\n  providers: [\r\n    provideServerRendering(withRoutes(serverRoutes))\r\n  ]\r\n}"
+            },
+            {
+                "name": "serverRoutes",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/app/app.routes.server.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "ServerRoute[]",
+                "defaultValue": "[\r\n  {\r\n    path: '**',\r\n    renderMode: RenderMode.Prerender\r\n  }\r\n]"
+            }
+        ],
+        "functions": [],
+        "typealiases": [],
+        "enumerations": [],
+        "groupedVariables": {
+            "src/server.ts": [
+                {
+                    "name": "angularApp",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/server.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "defaultValue": "new AngularNodeAppEngine()"
+                },
+                {
+                    "name": "app",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/server.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "defaultValue": "express()"
+                },
+                {
+                    "name": "browserDistFolder",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/server.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "defaultValue": "join(import.meta.dirname, '../browser')"
+                },
+                {
+                    "name": "reqHandler",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/server.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "defaultValue": "createNodeRequestHandler(app)",
+                    "rawdescription": "Request handler used by the Angular CLI (for dev-server and during build) or Firebase Cloud Functions.",
+                    "description": "<p>Request handler used by the Angular CLI (for dev-server and during build) or Firebase Cloud Functions.</p>\n"
+                }
+            ],
+            "src/app/app.config.ts": [
+                {
+                    "name": "appConfig",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/app/app.config.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "ApplicationConfig",
+                    "defaultValue": "{\r\n  providers: [\r\n    provideBrowserGlobalErrorListeners(),\r\n    provideRouter(routes), provideClientHydration(withEventReplay())\r\n  ]\r\n}"
+                }
+            ],
+            "src/main.server.ts": [
+                {
+                    "name": "bootstrap",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/main.server.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "defaultValue": "(context: BootstrapContext) =>\r\n    bootstrapApplication(App, config, context)"
+                }
+            ],
+            "src/app/app.config.server.ts": [
+                {
+                    "name": "config",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/app/app.config.server.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "unknown",
+                    "defaultValue": "mergeApplicationConfig(appConfig, serverConfig)"
+                },
+                {
+                    "name": "serverConfig",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/app/app.config.server.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "ApplicationConfig",
+                    "defaultValue": "{\r\n  providers: [\r\n    provideServerRendering(withRoutes(serverRoutes))\r\n  ]\r\n}"
+                }
+            ],
+            "src/app/components/date-picker.component/date-picker.component.ts": [
+                {
+                    "name": "PRESETS",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/app/components/date-picker.component/date-picker.component.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "[]",
+                    "defaultValue": "[\r\n  { label: 'Today', key: 'today' },\r\n  { label: 'Yesterday', key: 'yesterday' },\r\n  { label: 'Last week', key: 'last_week' },\r\n  { label: 'Last month', key: 'last_month' },\r\n  { label: 'Last quarter', key: 'last_quarter' },\r\n]"
+                }
+            ],
+            "src/app/app.routes.ts": [
+                {
+                    "name": "routes",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/app/app.routes.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "Routes",
+                    "defaultValue": "[\r\n    { path: '', component: Login, data: {hideLayout: true}},\r\n    { path: 'dashboard', component: Dashboard, data: {hideLayout: false}},\r\n    { path: 'user-flow', component: UserFlow}\r\n]"
+                }
+            ],
+            "src/app/app.routes.server.ts": [
+                {
+                    "name": "serverRoutes",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/app/app.routes.server.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "ServerRoute[]",
+                    "defaultValue": "[\r\n  {\r\n    path: '**',\r\n    renderMode: RenderMode.Prerender\r\n  }\r\n]"
+                }
+            ]
+        },
+        "groupedFunctions": {},
+        "groupedEnumerations": {},
+        "groupedTypeAliases": {}
+    },
+    "routes": {
+        "name": "<root>",
+        "kind": "module",
+        "children": [
+            {
+                "name": "Login",
+                "kind": "component",
+                "path": "",
+                "filename": "src/app/app.routes.ts"
+            },
+            {
+                "name": "Dashboard",
+                "kind": "component",
+                "path": "dashboard",
+                "filename": "src/app/app.routes.ts"
+            },
+            {
+                "name": "UserFlow",
+                "kind": "component",
+                "path": "user-flow",
+                "filename": "src/app/app.routes.ts"
+            }
+        ]
+    },
+    "coverage": {
+        "count": 7,
+        "status": "low",
+        "files": [
+            {
+                "filePath": "src/app/account/login/login.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "Login",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/app.config.server.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "config",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/app.config.server.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "serverConfig",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/app.config.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "appConfig",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/app.routes.server.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "serverRoutes",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/app.routes.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "routes",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/app.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "App",
+                "coveragePercent": 0,
+                "coverageCount": "0/4",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/components/date-picker.component/date-picker.component.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "DatePickerComponent",
+                "coveragePercent": 0,
+                "coverageCount": "0/33",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/components/date-picker.component/date-picker.component.ts",
+                "type": "interface",
+                "linktype": "interface",
+                "name": "CalendarDay",
+                "coveragePercent": 0,
+                "coverageCount": "0/8",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/components/date-picker.component/date-picker.component.ts",
+                "type": "interface",
+                "linktype": "interface",
+                "name": "DateRange",
+                "coveragePercent": 0,
+                "coverageCount": "0/4",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/components/date-picker.component/date-picker.component.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "PRESETS",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/components/footer/footer.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "Footer",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/components/header/header.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "Header",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/components/side-bar/side-bar.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "SideBar",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/pages/dashboard/dashboard.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "Dashboard",
+                "coveragePercent": 0,
+                "coverageCount": "0/8",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/pages/user-flow/user-flow.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "UserFlow",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/main.server.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "bootstrap",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/server.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "angularApp",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/server.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "app",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/server.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "browserDistFolder",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/server.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "reqHandler",
+                "coveragePercent": 100,
+                "coverageCount": "1/1",
+                "status": "very-good"
+            },
+            {
+                "filePath": "src/stories/button.component.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "ButtonComponent",
+                "coveragePercent": 83,
+                "coverageCount": "5/6",
+                "status": "very-good"
+            },
+            {
+                "filePath": "src/stories/header.component.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "HeaderComponent",
+                "coveragePercent": 0,
+                "coverageCount": "0/5",
+                "status": "low"
+            },
+            {
+                "filePath": "src/stories/page.component.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "PageComponent",
+                "coveragePercent": 0,
+                "coverageCount": "0/5",
+                "status": "low"
+            },
+            {
+                "filePath": "src/stories/user.ts",
+                "type": "interface",
+                "linktype": "interface",
+                "name": "User",
+                "coveragePercent": 0,
+                "coverageCount": "0/2",
+                "status": "low"
+            }
+        ]
+    }
+}
